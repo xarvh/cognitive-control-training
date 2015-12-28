@@ -8,6 +8,7 @@ window.onload = function cortexModule() {
     //
     // app entry point
     //
+    addButtons();
     loadSounds('male', function(progress) {
         console.debug(progress);
         if (progress >= 1) readyNewGame();
@@ -25,16 +26,16 @@ window.onload = function cortexModule() {
     var userHasClickedNumber;
 
 
-    function clockNumberButton(number) {
-        if (userHasClickedNumber) return;
-        if (!previousNumber) return;
-        userHasClickedNumber = true;
+    function onClickNumberButtonFactory(number) {
+        return function onClickNumberButton() {
+            if (userHasClickedNumber) return;
+            if (!previousNumber) return;
+            userHasClickedNumber = true;
 
-        if (number == currentNumber + previousNumber) console.log('correct');
-        else console.log('wrong');
+            if (number == currentNumber + previousNumber) console.log('correct');
+            else console.log('wrong');
+        };
     }
-
-
 
 
     function giveNumber() {
@@ -49,8 +50,36 @@ window.onload = function cortexModule() {
     }
 
 
+    //
+    //
+    //
+    function addButtons() {
+        var container = document.getElementById('buttons');
 
+        var buttons = {};
+        numbers.forEach(function (n) { numbers.forEach(function (m) { buttons[n + m] = true;}); });
+        var N = Object.keys(buttons).map(Number).sort(function (a, b) { return a - b; });
+        console.log(N);
 
+        N.forEach(function (n) {
+            var button = document.createElement('button');
+            button.innerText = n;
+            button.onclick = onClickNumberButtonFactory(n);
+
+            var angle = Math.PI * 2 * ((n - N[0] + 0.5) / N.length);
+
+            var top = container.clientHeight/2.5 * (1 - Math.cos(angle));
+            var left = container.clientWidth/2.5 * (1 + Math.sin(angle));
+
+            button.style.position = 'absolute';
+            button.style.top = top + 'px';
+            button.style.left = left + 'px';
+            button.style.width = '30px';
+            button.style.height = '20px';
+
+            container.appendChild(button);
+        });
+    }
 
 
     //
