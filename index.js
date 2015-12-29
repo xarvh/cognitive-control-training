@@ -11,17 +11,19 @@ if (typeof assert === 'undefined') {
 
 function Game(options) {
     assert(options);
-    assert(typeof options.startingInverseSpeed === 'number');
     assert(typeof options.duration === 'number');
     assert(typeof options.tellNumber === 'function');
     assert(typeof options.onCount === 'function');
 
 
     const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const RIGHT = 'right';
+    const WRONG = 'wrong';
+    const MISS = 'miss';
 
 
-    var inverseSpeed = options.startingInverseSpeed;
-    var events = [inverseSpeed];
+    var inverseSpeed;
+    var events = [];
 
 
     var nextNumberTimeoutId;
@@ -30,10 +32,14 @@ function Game(options) {
     var userHasAnswered;
 
 
-    function start() {
+    function start(startingInverseSpeed) {
+        assert(typeof startingInverseSpeed === 'number');
+
+        inverseSpeed = startingInverseSpeed;
         currentNumber = previousNumber = null;
         userHasAnswered = null;
         nextNumberTimeoutId = nextNumberTimeoutId || setTimeout(nextNumber, 1000);
+        events.push(inverseSpeed);
     }
 
 
@@ -44,7 +50,7 @@ function Game(options) {
 
 
     function nextNumber() {
-        if (!userHasAnswered && previousNumber) count('miss');
+        if (!userHasAnswered && previousNumber) count(MISS);
 
         userHasAnswered = false;
         previousNumber = currentNumber;
@@ -59,28 +65,29 @@ function Game(options) {
         if (!previousNumber) return;
         if (userHasAnswered) return;
         userHasAnswered = true;
-        count(number == currentNumber + previousNumber ? 'right' : 'wrong');
+        count(number == currentNumber + previousNumber ? RIGHT : WRONG);
     }
 
 
     function count(result) {
         events.push(result);
 
-        if (events.slice(-5).every((r) => r === 'wrong' || r === 'miss')) {
+        if (events.slice(-5).every((r) => r === WRONG || r === MISS)) {
             inverseSpeed += 100;
             events.push(inverseSpeed);
         }
 
-        else if (events.slice(-5).every((r) => r === 'right')) {
+        else if (events.slice(-5).every((r) => r === RIGHT)) {
             inverseSpeed -= 100;
             events.push(inverseSpeed);
         }
 
-        options.onCount(result);
+        options.onCount(result, inverseSpeed);
     }
 
 
     this.NUMBERS = NUMBERS;
+    this.RESULTS = [RIGHT, MISS, WRONG];
     this.start = start;
     this.stop = stop;
     this.setUserAnswer = setUserAnswer;
@@ -95,10 +102,9 @@ window.onload = function cortexModule() {
     var numberSounds = {};
 
     var game = new Game({
-        startingInverseSpeed: 2000,
         duration: 5 * 60 * 1000,
         tellNumber: (number) => numberSounds[number].play(),
-        onCount: (result) => console.log(result),
+        onCount: onCount,
     });
 
 
@@ -139,32 +145,6 @@ window.onload = function cortexModule() {
     }
 
 
-    //
-    // game status
-    //
-    var startStop = document.getElementById('startstop');
-
-    function startGame() {
-        startStop.innerText = 'Stop';
-        startStop.onclick = stopGame;
-        game.start();
-    };
-
-    function stopGame() {
-        startStop.innerText = 'Start';
-        startStop.onclick = startGame;
-        game.stop();
-    };
-
-    function readyNewGame() {
-        stopGame();
-        // do other resetty stuff
-    }
-
-
-    //
-    // load up
-    //
     function loadSounds(voice, progress) {
         var loaded = 0;
         game.NUMBERS.forEach(function (n) {
@@ -176,5 +156,40 @@ window.onload = function cortexModule() {
                 numberSounds[n].oncanplaythrough = function () {};
             };
         });
+    }
+
+
+    //
+    // game status
+    //
+    var startStop = document.getElementById('startstop');
+
+
+    function startGame() {
+        startStop.innerText = 'Stop';
+        startStop.onclick = stopGame;
+        game.start(+document.getElementById('speed').value);
+    }
+
+
+    function stopGame() {
+        startStop.innerText = 'Start';
+        startStop.onclick = startGame;
+        game.stop();
+    }
+
+
+    function readyNewGame() {
+        stopGame();
+        // do other resetty stuff
+    }
+
+
+    var results = {right: 0, wrong: 0, miss: 0};
+    function onCount(result, speed) {
+        results[result] += 1;
+        console.log(result);
+        document.getElementById(result).innerText = results[result];
+        document.getElementById('speed').value = speed;
     }
 };
