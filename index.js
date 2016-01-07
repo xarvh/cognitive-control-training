@@ -112,7 +112,7 @@ window.onload = function cortexModule() {
     // app entry point
     //
     addButtons();
-    loadSounds('english/male', function (progress) {
+    loadSounds('english/ossi', function (progress) {
         if (progress >= 1) readyNewGame();
     });
 
