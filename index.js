@@ -134,7 +134,7 @@ window.onload = function cortexModule() {
 
         N.forEach(function (n) {
             var button = document.createElement('button');
-            button.innerText = n;
+            button.innerHTML = n.toString();
             button.onclick = () => game.setUserAnswer(n);
 
             var angle = Math.PI * 2 * ((n - N[0] + 0.5) / N.length);
@@ -197,14 +197,14 @@ window.onload = function cortexModule() {
 
 
     function startGame() {
-        startStop.innerText = 'Stop';
+        startStop.innerHTML = 'Stop';
         startStop.onclick = stopGame;
         game.start(+document.getElementById('speed').value);
     }
 
 
     function stopGame() {
-        startStop.innerText = 'Start';
+        startStop.innerHTML = 'Start';
         startStop.onclick = startGame;
         game.stop();
     }
@@ -219,7 +219,7 @@ window.onload = function cortexModule() {
     var results = {right: 0, wrong: 0, miss: 0};
     function onCount(result, speed) {
         results[result] += 1;
-        document.getElementById(result).innerText = results[result];
+        document.getElementById(result).innerHTML = results[result];
         document.getElementById('speed').value = speed;
     }
 };
