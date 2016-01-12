@@ -9,6 +9,13 @@ if (typeof assert === 'undefined') {
 }
 
 
+function pad(n) {
+    n = n.toString();
+    while (n.length < 2) n = '0' + n;
+    return n;
+}
+
+
 function Game(options) {
     assert(options);
     assert(typeof options.duration === 'number');
@@ -112,6 +119,7 @@ window.onload = function cortexModule() {
     // app entry point
     //
     addButtons();
+    addDownload();
     loadSounds('english/ossi', function (progress) {
         if (progress >= 1) readyNewGame();
     });
@@ -160,6 +168,29 @@ window.onload = function cortexModule() {
 
 
     //
+    // Download
+    //
+    function addDownload() {
+        var sessionStart = new Date();
+
+        var filename = [
+            'numbersTask_s',
+            sessionStart.getFullYear(), pad(sessionStart.getMonth() + 1), pad(sessionStart.getDate()),
+            '_',
+            pad(sessionStart.getHours()),
+            pad(sessionStart.getMinutes()),
+            '.txt'
+        ].join('');
+
+        document.getElementById('download').onclick = function () {
+            var contents = game.getEvents().join('\n') + '\n'
+            var blob = new Blob([contents], { type: 'text/plain;charset=utf-8' });
+            saveAs(blob, filename);
+        };
+    }
+
+
+    //
     // game status
     //
     var startStop = document.getElementById('startstop');
@@ -188,7 +219,6 @@ window.onload = function cortexModule() {
     var results = {right: 0, wrong: 0, miss: 0};
     function onCount(result, speed) {
         results[result] += 1;
-        console.log(result);
         document.getElementById(result).innerText = results[result];
         document.getElementById('speed').value = speed;
     }
