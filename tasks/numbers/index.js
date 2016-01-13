@@ -72,7 +72,7 @@ window.onload = function cortexModule() {
 
 
     //
-    // Download
+    // download
     //
     function addDownload() {
         var sessionStart = new Date();
@@ -83,12 +83,12 @@ window.onload = function cortexModule() {
             '_',
             pad(sessionStart.getHours()),
             pad(sessionStart.getMinutes()),
-            '.txt'
+            '.csv'
         ].join('');
 
         document.getElementById('download').onclick = function () {
-            var contents = game.getEvents().join('\n') + '\n'
-            var blob = new Blob([contents], { type: 'text/plain;charset=utf-8' });
+            var contents = game.getEvents().map((e) => e.map((v) => '"' + v + '"').join(',') + '\n').join('');
+            var blob = new Blob([contents], { type: 'text/csv;charset=utf-8' });
             saveAs(blob, filename);
         };
     }

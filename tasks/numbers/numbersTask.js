@@ -1,5 +1,6 @@
 'use strict';
 
+
 var assert;
 if (typeof assert === 'undefined') {
     assert = function assert(thing, message) {
@@ -20,17 +21,25 @@ function NumbersTask(options) {
     const WRONG = 'wrong';
     const MISS = 'miss';
 
-
-    var inverseSpeed;
-    var events = [];
-
-
+    // Task state
     var nextNumberTimeoutId;
     var currentNumber;
     var previousNumber;
     var userHasAnswered;
+    var inverseSpeed;
+
+    // Events
+    var events = [['Browser Time (utc)', 'Inverse Speed (ms)', 'Event']];
+
+    function pushEvent(name) {
+        events.push([new Date().toISOString(), inverseSpeed, name]);
+    }
+
+    function isSuccess(e) { return e[2] === RIGHT; }
+    function isFailure(e) { return e[2] === WRONG || e[2] === MISS; }
 
 
+    //
     function start(startingInverseSpeed) {
         assert(typeof startingInverseSpeed === 'number');
 
@@ -38,13 +47,15 @@ function NumbersTask(options) {
         currentNumber = previousNumber = null;
         userHasAnswered = null;
         nextNumberTimeoutId = nextNumberTimeoutId || setTimeout(nextNumber, 1000);
-        events.push(inverseSpeed);
+        pushEvent('start');
     }
 
 
     function stop() {
+        if (!nextNumberTimeoutId) return;
         clearTimeout(nextNumberTimeoutId);
         nextNumberTimeoutId = null;
+        pushEvent('stop');
     }
 
 
@@ -69,16 +80,16 @@ function NumbersTask(options) {
 
 
     function count(result) {
-        events.push(result);
+        pushEvent(result);
 
-        if (events.slice(-5).every((r) => r === WRONG || r === MISS)) {
+        if (events.slice(-5).every(isFailure)) {
             inverseSpeed += 100;
-            events.push(inverseSpeed);
+            pushEvent('slower');
         }
 
-        else if (events.slice(-5).every((r) => r === RIGHT)) {
+        else if (events.slice(-5).every(isSuccess)) {
             inverseSpeed -= 100;
-            events.push(inverseSpeed);
+            pushEvent('faster');
         }
 
         options.onCount(result, inverseSpeed);
