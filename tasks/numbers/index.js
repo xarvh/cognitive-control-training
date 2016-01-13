@@ -17,7 +17,6 @@ window.onload = function () {
     // app entry point
     //
     addButtons();
-    addDownload();
     loadSounds('english/ossi', function (progress) {
         if (progress >= 1) readyNewGame();
     });
@@ -68,15 +67,15 @@ window.onload = function () {
     //
     // download
     //
-    function addDownload() {
-        var filename = 'numbersTask_' + moment().format('YYYYMMDD_HHmm') + '.csv';
-
-        document.getElementById('download').onclick = function () {
-            var contents = game.getEvents().map((e) => e.map((v) => '"' + v + '"').join(',') + '\n').join('');
-            var blob = new Blob([contents], { type: 'text/csv;charset=utf-8' });
-            saveAs(blob, filename);
-        };
+    var sessionTimestamp = new Date;
+    function downloadCsv(dataArrayOfArrays, name) {
+        var contents = dataArrayOfArrays.map((e) => e.map((v) => '"' + v + '"').join(',') + '\n').join('');
+        var blob = new Blob([contents], { type: 'text/csv' });
+        saveAs(blob, 'numbersTask_' + moment(sessionTimestamp).format('YYYYMMDD_HHmm') + '_' + name + '.csv');
     }
+
+    document.getElementById('download-log').onclick = () => downloadCsv(game.getEvents(), 'log');
+    document.getElementById('download-aggregate').onclick = () => downloadCsv(game.getAggregateEvents(), 'aggregate');
 
 
     //
