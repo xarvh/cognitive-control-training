@@ -98,19 +98,24 @@ window.onload = function cortexModule() {
     // game status
     //
     var startStop = document.getElementById('startstop');
+    var durationTimeoutId = null;
 
 
     function startGame() {
         startStop.innerHTML = 'Stop';
         startStop.onclick = stopGame;
+
         game.start(+document.getElementById('speed').value);
+        var duration = +document.getElementById('duration').value;
+        if (duration) durationTimeoutId = setTimeout(stopGame, duration * 60 * 1000);
     }
 
 
     function stopGame() {
+        clearTimeout(durationTimeoutId);
+        game.stop();
         startStop.innerHTML = 'Start';
         startStop.onclick = startGame;
-        game.stop();
     }
 
 
