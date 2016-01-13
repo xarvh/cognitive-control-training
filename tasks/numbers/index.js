@@ -1,14 +1,7 @@
-'use strict'
+'use strict';
 
 
-function pad(n) {
-    n = n.toString();
-    while (n.length < 2) n = '0' + n;
-    return n;
-}
-
-
-window.onload = function cortexModule() {
+window.onload = function () {
 
     var numberSounds = {};
 
@@ -16,6 +9,7 @@ window.onload = function cortexModule() {
         duration: 5 * 60 * 1000,
         tellNumber: (number) => numberSounds[number].play(),
         onCount: onCount,
+        formatTimestamp: (d) => moment(d).format('YYYY-MM-DD HH:mm:ss.SSS'),
     });
 
 
@@ -75,16 +69,7 @@ window.onload = function cortexModule() {
     // download
     //
     function addDownload() {
-        var sessionStart = new Date();
-
-        var filename = [
-            'numbersTask_s',
-            sessionStart.getFullYear(), pad(sessionStart.getMonth() + 1), pad(sessionStart.getDate()),
-            '_',
-            pad(sessionStart.getHours()),
-            pad(sessionStart.getMinutes()),
-            '.csv'
-        ].join('');
+        var filename = 'numbersTask_' + moment().format('YYYYMMDD_HHmm') + '.csv';
 
         document.getElementById('download').onclick = function () {
             var contents = game.getEvents().map((e) => e.map((v) => '"' + v + '"').join(',') + '\n').join('');

@@ -14,7 +14,7 @@ function NumbersTask(options) {
     assert(typeof options.duration === 'number');
     assert(typeof options.tellNumber === 'function');
     assert(typeof options.onCount === 'function');
-
+    assert(typeof options.formatTimestamp === 'function');
 
     const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const RIGHT = 'right';
@@ -29,10 +29,10 @@ function NumbersTask(options) {
     var inverseSpeed;
 
     // Events
-    var events = [['Browser Time (utc)', 'Inverse Speed (ms)', 'Event']];
+    var events = [['Timestamp', 'Inverse Speed (ms)', 'Event']];
 
     function pushEvent(name) {
-        events.push([new Date().toISOString(), inverseSpeed, name]);
+        events.push([options.formatTimestamp(new Date), inverseSpeed, name]);
     }
 
     function isSuccess(e) { return e[2] === RIGHT; }
