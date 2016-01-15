@@ -1,0 +1,29 @@
+body {
+    background-color: rgb(128, 128, 128)
+}
+
+ #number-buttons-container {
+     width: 280px;
+     height: 280px;
+     position: relative;
+ }
+
+.number-button {
+    position: absolute;
+
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    border-radius: 15px;
+
+    background-color: rgb(200, 200, 200);
+}
+
+.number-button:hover {
+    background-color: rgb(255, 255, 255);
+}
+
+.number-button:active {
+    background-color: rgb(55, 55, 55);
+    border: 1px solid rgb(200, 200, 200);
+}

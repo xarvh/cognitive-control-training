@@ -23,27 +23,25 @@ window.onload = function () {
 
 
     function addButtons() {
-        var container = document.getElementById('buttons');
+        var container = document.getElementById('number-buttons-container');
 
         var buttons = {};
         game.NUMBERS.forEach((n) => game.NUMBERS.forEach((m) => buttons[n + m] = true));
         var N = Object.keys(buttons).map(Number).sort((a, b) => a - b);
 
-        N.forEach(function (n) {
-            var button = document.createElement('button');
+        N.forEach(function (n, index) {
+            var button = document.createElement('div');
+            button.className = 'number-button';
             button.innerHTML = n.toString();
             button.onclick = () => game.setUserAnswer(n);
 
-            var angle = Math.PI * 2 * ((n - N[0] + 0.5) / N.length);
+            var angle = Math.PI * 2 * ((index + 1) / (N.length + 1));
 
             var top = container.clientHeight/2.5 * (1 - Math.cos(angle));
             var left = container.clientWidth/2.5 * (1 + Math.sin(angle));
 
-            button.style.position = 'absolute';
             button.style.top = top + 'px';
             button.style.left = left + 'px';
-            button.style.width = '30px';
-            button.style.height = '20px';
 
             container.appendChild(button);
         });
