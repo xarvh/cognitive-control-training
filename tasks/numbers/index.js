@@ -6,7 +6,6 @@ window.onload = function () {
     var numberSounds = {};
 
     var game = new NumbersTask({
-        duration: 5 * 60 * 1000,
         tellNumber: (number) => numberSounds[number].play(),
         onCount: onCount,
         formatTimestamp: (d) => moment(d).format('YYYY-MM-DD HH:mm:ss.SSS'),

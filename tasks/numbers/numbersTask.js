@@ -1,6 +1,10 @@
 'use strict';
 
 
+if (typeof module === 'object')
+    module.exports = NumbersTask;
+
+
 var assert;
 if (typeof assert === 'undefined') {
     assert = function assert(thing, message) {
@@ -11,7 +15,6 @@ if (typeof assert === 'undefined') {
 
 function NumbersTask(options) {
     assert(options);
-    assert(typeof options.duration === 'number');
     assert(typeof options.tellNumber === 'function');
     assert(typeof options.onCount === 'function');
     assert(typeof options.formatTimestamp === 'function');
@@ -86,12 +89,12 @@ function NumbersTask(options) {
     function count(result) {
         pushEvent(result);
 
-        if (events.slice(-5).every(isFailure)) {
+        if (events.slice(-4).every(isFailure)) {
             inverseSpeed += 100;
             pushEvent('slower');
         }
 
-        else if (events.slice(-5).every(isSuccess)) {
+        else if (events.slice(-4).every(isSuccess)) {
             inverseSpeed -= 100;
             pushEvent('faster');
         }
