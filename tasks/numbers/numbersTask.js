@@ -1,5 +1,12 @@
 'use strict';
 
+/*
+ * TODO
+ *
+ * - unit test
+ * - decouple event storage and CSV export (use an object to describe an event)
+ * - rename inverseSpeed to inter-stimulus interval
+ */
 
 if (typeof module === 'object')
     module.exports = NumbersTask;
@@ -47,13 +54,14 @@ function NumbersTask(options) {
 
 
     //
-    function start(startingInverseSpeed) {
+    function start(startingInverseSpeed, initialDelay) {
         assert(typeof startingInverseSpeed === 'number');
+        assert(!nextNumberTimeoutId, 'numbersTask already running');
 
         inverseSpeed = startingInverseSpeed;
         currentNumber = previousNumber = null;
         userHasAnswered = null;
-        nextNumberTimeoutId = nextNumberTimeoutId || setTimeout(nextNumber, 1000);
+        nextNumberTimeoutId = setTimeout(nextNumber, initialDelay || 500);
         pushEvent(START);
     }
 
@@ -73,8 +81,8 @@ function NumbersTask(options) {
         previousNumber = currentNumber;
         currentNumber = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
 
-        options.tellNumber(currentNumber);
         nextNumberTimeoutId = setTimeout(nextNumber, inverseSpeed);
+        options.tellNumber(currentNumber);
     }
 
 
