@@ -1,0 +1,24 @@
+{
+  "name": "cortex",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.html",
+  "scripts": {
+    "test": "lab --verbose tasks/**/*Test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xarvh/cortex.git"
+  },
+  "author": "Francesco Orsenigo",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/xarvh/cortex/issues"
+  },
+  "homepage": "http://xarvh.github.io/cortex/",
+  "devDependencies": {
+    "lab": "^8.2.0",
+    "lodash": "^4.0.0",
+    "sinon": "^1.17.2"
+  }
+}
