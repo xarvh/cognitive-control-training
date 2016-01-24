@@ -1,10 +1,5 @@
 'use strict';
 
-/*
- * TODO
- *
- * - decouple event storage and CSV export (use an object to describe an event)
- */
 
 if (typeof module === 'object')
     module.exports = NumbersTask;
@@ -22,7 +17,6 @@ function NumbersTask(options) {
     assert(options);
     assert(typeof options.emitDigit === 'function');
     assert(typeof options.onCount === 'function');
-    assert(typeof options.formatTimestamp === 'function');
 
     const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -41,14 +35,14 @@ function NumbersTask(options) {
     var isi; // inter-stimulus interval, the time between emitDigit() calls
 
     // Events
-    var events = [['Timestamp', 'ISI (ms)', 'Event']];
+    var events = [];
 
     function pushEvent(name) {
-        events.push([options.formatTimestamp(new Date), isi, name]);
+        events.push({ timestamp: new Date, isi: isi, name: name });
     }
 
-    function isSuccess(e) { return e[2] === RIGHT; }
-    function isFailure(e) { return e[2] === WRONG || e[2] === MISS; }
+    function isSuccess(e) { return e.name === RIGHT; }
+    function isFailure(e) { return e.name === WRONG || e.name === MISS; }
 
 
     //
@@ -109,7 +103,12 @@ function NumbersTask(options) {
     }
 
 
-    function getAggregateEvents() {
+    function getEventsTable(formatTimestamp) {
+         return [['Timestamp', 'ISI (ms)', 'Event']].concat(events.map((e) => [ formatTimestamp(e.timestamp), e.isi, e.name ]));
+    }
+
+
+    function getAggregateEventsTable(formatTimestamp) {
         var sessions = [[
             'Session start',
             'Session end',
@@ -128,20 +127,20 @@ function NumbersTask(options) {
 
 
         function addSession(evs) {
-            var sessionStart = _.first(evs)[0];
-            var sessionEnd = _.last(evs)[0];
+            var sessionStart = formatTimestamp(_.first(evs).timestamp);
+            var sessionEnd = formatTimestamp(_.last(evs).timestamp);
 
-            var counts = _.countBy(evs, (e) => e[2]);
+            var counts = _.countBy(evs, 'name');
             var right = counts[RIGHT] || 0;
             var wrong = counts[WRONG] || 0;
             var miss = counts[MISS] || 0;
 
             var accuracy = right / (right + wrong + miss);
 
-            var startingIsi = _.first(evs)[1];
-            var maxIsi = _(evs).map((e) => e[1]).max();
-            var minIsi = _(evs).map((e) => e[1]).min();
-            var by = _(evs).filter((e) => e[1] === minIsi).countBy((e) => e[2]).value();
+            var startingIsi = _.first(evs).isi;
+            var maxIsi = _(evs).map('isi').max();
+            var minIsi = _(evs).map('isi').min();
+            var by = _(evs).filter({ isi: minIsi }).countBy('name').value();
             var trialsAtMinIsi = (by[RIGHT] || 0) + (by[WRONG] || 0) + (by[MISS] || 0);
 
             sessions.push([
@@ -158,13 +157,12 @@ function NumbersTask(options) {
             ]);
         }
 
-        var evs = events.slice(1);
         var lastStart = 0;
-        evs.forEach(function (e, index) {
-            if (e[2] !== STOP) return;
+        events.forEach(function (e, index) {
+            if (e.name !== STOP) return;
 
-            var sessionEvents = evs.slice(lastStart, index + 1);
-            assert(sessionEvents[0][2] === START, sessionEvents[0][2]);
+            var sessionEvents = events.slice(lastStart, index + 1);
+            assert(sessionEvents[0].name === START, sessionEvents[0].name);
             addSession(sessionEvents);
             lastStart = index + 1;
         });
@@ -178,6 +176,7 @@ function NumbersTask(options) {
     this.start = start;
     this.stop = stop;
     this.setUserAnswer = setUserAnswer;
-    this.getEvents = () => events;
-    this.getAggregateEvents = getAggregateEvents;
+    this.getEvents = () => events.slice();
+    this.getEventsTable = getEventsTable;
+    this.getAggregateEventsTable = getAggregateEventsTable;
 }

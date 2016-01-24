@@ -8,7 +8,6 @@ window.onload = function () {
     var game = new NumbersTask({
         emitDigit: (digit) => digitSounds[digit].play(),
         onCount: onCount,
-        formatTimestamp: (d) => moment(d).format('YYYY-MM-DD HH:mm:ss.SSS'),
     });
 
 
@@ -64,6 +63,10 @@ window.onload = function () {
     //
     // download
     //
+    function formatTimestamp(d) {
+        return moment(d).format('YYYY-MM-DD HH:mm:ss.SSS');
+    }
+
     var sessionTimestamp = new Date;
     function downloadCsv(dataArrayOfArrays, name) {
         var contents = dataArrayOfArrays.map((e) => e.map((v) => '"' + v + '"').join(',') + '\n').join('');
@@ -71,8 +74,8 @@ window.onload = function () {
         saveAs(blob, 'numbersTask_' + moment(sessionTimestamp).format('YYYYMMDD_HHmm') + '_' + name + '.csv');
     }
 
-    document.getElementById('download-log').onclick = () => downloadCsv(game.getEvents(), 'log');
-    document.getElementById('download-aggregate').onclick = () => downloadCsv(game.getAggregateEvents(), 'aggregate');
+    document.getElementById('download-log').onclick = () => downloadCsv(game.getEventsTable(formatTimestamp), 'log');
+    document.getElementById('download-aggregate').onclick = () => downloadCsv(game.getAggregateEventsTable(formatTimestamp), 'aggregate');
 
 
     //

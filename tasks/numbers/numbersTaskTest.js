@@ -20,6 +20,9 @@ lab.experiment('Numbers Task', () => {
     lab.after((done) => { delete global._; done(); });
 
 
+    var fmtTime = _.identity;
+
+
     lab.test('accepts an initial isi', (done) => {
 
         var tellDigitTimestamps = [];
@@ -59,7 +62,7 @@ lab.experiment('Numbers Task', () => {
             assert.deepEqual(onCount.args, [ ['miss', 25], ['miss', 25], ['miss', 25] ]);
 
             // test aggregate data
-            var aggregate = task.getAggregateEvents();
+            var aggregate = task.getAggregateEventsTable(fmtTime);
             assert.equal(aggregate.length, 2)
 
             var session = _.zipObject(aggregate[0], aggregate[1]);
@@ -73,7 +76,7 @@ lab.experiment('Numbers Task', () => {
             assert.equal(session['Trials at minimum ISI'], 3);
 
             // test events
-            assert.deepEqual(_.map(task.getEvents(), 2), ['Event', 'start', 'miss', 'miss', 'miss', 'stop']);
+            assert.deepEqual(_.map(task.getEventsTable(fmtTime), 2), ['Event', 'start', 'miss', 'miss', 'miss', 'stop']);
 
             done();
         });
@@ -108,14 +111,14 @@ lab.experiment('Numbers Task', () => {
         timeoutSet(25 * 6, function () {
             assert.deepEqual(onCount.args, [ ['wrong', 25], ['miss', 25], ['right', 25] ]);
 
-            var aggregate = task.getAggregateEvents();
+            var aggregate = task.getAggregateEventsTable(fmtTime);
             var session = _.zipObject(aggregate[0], aggregate[1]);
             assert.equal(session['Right'], 1);
             assert.equal(session['Wrong'], 1);
             assert.equal(session['Miss'], 1);
             assert.equal(session['Accuracy (normalized)'], 1/3);
 
-            assert.deepEqual(_.map(task.getEvents(), 2), ['Event', 'start', 'wrong', 'miss', 'right', 'stop']);
+            assert.deepEqual(_.map(task.getEventsTable(fmtTime), 2), ['Event', 'start', 'wrong', 'miss', 'right', 'stop']);
             done();
         });
     });
