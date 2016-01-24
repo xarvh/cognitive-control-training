@@ -20,41 +20,41 @@ lab.experiment('Numbers Task', () => {
     lab.after((done) => { delete global._; done(); });
 
 
-    lab.test('accepts an initial inverse speed', (done) => {
+    lab.test('accepts an initial isi', (done) => {
 
-        var tellNumberTimestamps = [];
+        var tellDigitTimestamps = [];
         var onCount = sinon.spy();
 
         var task = new NumbersTask({
             formatTimestamp: (a) => a,
             onCount: onCount,
-            tellNumber: () => {
-                tellNumberTimestamps.push(new Date);
-                if (tellNumberTimestamps.length > 4) {
+            emitDigit: () => {
+                tellDigitTimestamps.push(new Date);
+                if (tellDigitTimestamps.length > 4) {
                     task.stop();
                 }
             },
         });
 
-        var invSpeed = 25;
+        var isi = 25;
         var initialDelay = 10;
-        task.start(invSpeed, initialDelay);
+        task.start(isi, initialDelay);
 
         timeoutSet(initialDelay / 2, function () {
-            assert.throws(() => task.start(invSpeed, initialDelay), /already/);
+            assert.throws(() => task.start(isi, initialDelay), /already/);
         });
 
-        timeoutSet(initialDelay + invSpeed * 8, function () {
-            assert.equal(tellNumberTimestamps.length, 5);
+        timeoutSet(initialDelay + isi * 8, function () {
+            assert.equal(tellDigitTimestamps.length, 5);
 
-            tellNumberTimestamps.reduce((previous, current) => {
+            tellDigitTimestamps.reduce((previous, current) => {
                 var time = current - previous;
-                assert(time > invSpeed / 2);
-                assert(time < invSpeed * 2);
+                assert(time > isi / 2);
+                assert(time < isi * 2);
                 return current;
             });
 
-            // 5 numbers are called, but the first one is not counted, and the
+            // 5 digits are called, but the first one is not counted, and the
             // game is terminated before the last one can register as 'miss'.
             assert.deepEqual(onCount.args, [ ['miss', 25], ['miss', 25], ['miss', 25] ]);
 
@@ -67,10 +67,10 @@ lab.experiment('Numbers Task', () => {
             assert.equal(session['Wrong'], 0);
             assert.equal(session['Miss'], 3);
             assert.equal(session['Accuracy (normalized)'], 0);
-            assert.equal(session['Starting inverse speed'], 25);
-            assert.equal(session['Max inverse speed'], 25);
-            assert.equal(session['Min inverse speed'], 25);
-            assert.equal(session['Trials at min inverse speed'], 3);
+            assert.equal(session['Starting ISI'], 25);
+            assert.equal(session['Max ISI'], 25);
+            assert.equal(session['Min ISI'], 25);
+            assert.equal(session['Trials at minimum ISI'], 3);
 
             // test events
             assert.deepEqual(_.map(task.getEvents(), 2), ['Event', 'start', 'miss', 'miss', 'miss', 'stop']);
@@ -85,23 +85,23 @@ lab.experiment('Numbers Task', () => {
         var onCount = sinon.spy();
 
         var task;
-        var numbers = []
-        var onNumber = (n) => setImmediate(function () {
-            switch (numbers.length) {
+        var digits = []
+        var emitDigit = (n) => setImmediate(function () {
+            switch (digits.length) {
                 case 0: break;
                 case 1: task.setUserAnswer(20); break; // wrong
                 case 2: break; // miss
-                case 3: task.setUserAnswer(_.last(numbers) + n); break; // right
+                case 3: task.setUserAnswer(_.last(digits) + n); break; // right
                 case 4: task.stop(); break;
             }
 
-            numbers.push(n);
+            digits.push(n);
         });
 
         task = new NumbersTask({
             formatTimestamp: (a) => a,
             onCount: onCount,
-            tellNumber: onNumber,
+            emitDigit: emitDigit,
         });
 
         task.start(25, 25);

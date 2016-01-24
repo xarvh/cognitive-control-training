@@ -3,10 +3,10 @@
 
 window.onload = function () {
 
-    var numberSounds = {};
+    var digitSounds = {};
 
     var game = new NumbersTask({
-        tellNumber: (number) => numberSounds[number].play(),
+        emitDigit: (digit) => digitSounds[digit].play(),
         onCount: onCount,
         formatTimestamp: (d) => moment(d).format('YYYY-MM-DD HH:mm:ss.SSS'),
     });
@@ -25,16 +25,16 @@ window.onload = function () {
         var container = document.getElementById('number-buttons-container');
 
         var buttons = {};
-        game.NUMBERS.forEach((n) => game.NUMBERS.forEach((m) => buttons[n + m] = true));
-        var N = Object.keys(buttons).map(Number).sort((a, b) => a - b);
+        game.DIGITS.forEach((n) => game.DIGITS.forEach((m) => buttons[n + m] = true));
+        var numbers = Object.keys(buttons).map(Number).sort((a, b) => a - b);
 
-        N.forEach(function (n, index) {
+        numbers.forEach(function (n, index) {
             var button = document.createElement('div');
             button.className = 'number-button';
             button.innerHTML = n.toString();
             button.onclick = () => game.setUserAnswer(n);
 
-            var angle = Math.PI * 2 * ((index + 1) / (N.length + 1));
+            var angle = Math.PI * 2 * ((index + 1) / (numbers.length + 1));
 
             var top = container.clientHeight/2.5 * (1 - Math.cos(angle));
             var left = container.clientWidth/2.5 * (1 + Math.sin(angle));
@@ -49,13 +49,13 @@ window.onload = function () {
 
     function loadSounds(voice, progress) {
         var loaded = 0;
-        game.NUMBERS.forEach(function (n) {
-            numberSounds[n] = new Audio('sounds/' + voice + '/' + n + '.ogg');
-            numberSounds[n].preload = 'auto';
-            numberSounds[n].oncanplaythrough = function () {
+        game.DIGITS.forEach(function (n) {
+            digitSounds[n] = new Audio('sounds/' + voice + '/' + n + '.ogg');
+            digitSounds[n].preload = 'auto';
+            digitSounds[n].oncanplaythrough = function () {
                 loaded += 1;
-                progress(loaded / game.NUMBERS.length);
-                numberSounds[n].oncanplaythrough = function () {};
+                progress(loaded / game.DIGITS.length);
+                digitSounds[n].oncanplaythrough = function () {};
             };
         });
     }
@@ -86,7 +86,7 @@ window.onload = function () {
         startStop.innerHTML = 'Stop';
         startStop.onclick = stopGame;
 
-        game.start(+document.getElementById('speed').value);
+        game.start(+document.getElementById('isi').value);
         var duration = +document.getElementById('duration').value;
         if (duration) durationTimeoutId = setTimeout(stopGame, duration * 60 * 1000);
     }
@@ -107,9 +107,9 @@ window.onload = function () {
 
 
     var results = {right: 0, wrong: 0, miss: 0};
-    function onCount(result, speed) {
+    function onCount(result, isi) {
         results[result] += 1;
         document.getElementById(result).innerHTML = results[result];
-        document.getElementById('speed').value = speed;
+        document.getElementById('isi').value = isi;
     }
 };

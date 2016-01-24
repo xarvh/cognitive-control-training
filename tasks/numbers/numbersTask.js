@@ -3,9 +3,7 @@
 /*
  * TODO
  *
- * - unit test
  * - decouple event storage and CSV export (use an object to describe an event)
- * - rename inverseSpeed to inter-stimulus interval
  */
 
 if (typeof module === 'object')
@@ -22,11 +20,11 @@ if (typeof assert === 'undefined') {
 
 function NumbersTask(options) {
     assert(options);
-    assert(typeof options.tellNumber === 'function');
+    assert(typeof options.emitDigit === 'function');
     assert(typeof options.onCount === 'function');
     assert(typeof options.formatTimestamp === 'function');
 
-    const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
     const RIGHT = 'right';
     const WRONG = 'wrong';
@@ -36,17 +34,17 @@ function NumbersTask(options) {
     const STOP = 'stop';
 
     // Task state
-    var nextNumberTimeoutId;
-    var currentNumber;
-    var previousNumber;
+    var nextDigitTimeoutId;
+    var currentDigit;
+    var previousDigit;
     var userHasAnswered;
-    var inverseSpeed;
+    var isi; // inter-stimulus interval, the time between emitDigit() calls
 
     // Events
-    var events = [['Timestamp', 'Inverse speed (ms)', 'Event']];
+    var events = [['Timestamp', 'ISI (ms)', 'Event']];
 
     function pushEvent(name) {
-        events.push([options.formatTimestamp(new Date), inverseSpeed, name]);
+        events.push([options.formatTimestamp(new Date), isi, name]);
     }
 
     function isSuccess(e) { return e[2] === RIGHT; }
@@ -54,43 +52,43 @@ function NumbersTask(options) {
 
 
     //
-    function start(startingInverseSpeed, initialDelay) {
-        assert(typeof startingInverseSpeed === 'number');
-        assert(!nextNumberTimeoutId, 'numbersTask already running');
+    function start(startingIsi, initialDelay) {
+        assert(typeof startingIsi === 'number');
+        assert(!nextDigitTimeoutId, 'numbersTask already running');
 
-        inverseSpeed = startingInverseSpeed;
-        currentNumber = previousNumber = null;
+        isi = startingIsi;
+        currentDigit = previousDigit = null;
         userHasAnswered = null;
-        nextNumberTimeoutId = setTimeout(nextNumber, initialDelay || 500);
+        nextDigitTimeoutId = setTimeout(nextDigit, initialDelay || 500);
         pushEvent(START);
     }
 
 
     function stop() {
-        if (!nextNumberTimeoutId) return;
-        clearTimeout(nextNumberTimeoutId);
-        nextNumberTimeoutId = null;
+        if (!nextDigitTimeoutId) return;
+        clearTimeout(nextDigitTimeoutId);
+        nextDigitTimeoutId = null;
         pushEvent(STOP);
     }
 
 
-    function nextNumber() {
-        if (!userHasAnswered && previousNumber) count(MISS);
+    function nextDigit() {
+        if (!userHasAnswered && previousDigit) count(MISS);
 
         userHasAnswered = false;
-        previousNumber = currentNumber;
-        currentNumber = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
+        previousDigit = currentDigit;
+        currentDigit = DIGITS[Math.floor(Math.random() * DIGITS.length)];
 
-        nextNumberTimeoutId = setTimeout(nextNumber, inverseSpeed);
-        options.tellNumber(currentNumber);
+        nextDigitTimeoutId = setTimeout(nextDigit, isi);
+        options.emitDigit(currentDigit);
     }
 
 
     function setUserAnswer(number) {
-        if (!previousNumber) return;
+        if (!previousDigit) return;
         if (userHasAnswered) return;
         userHasAnswered = true;
-        count(number == currentNumber + previousNumber ? RIGHT : WRONG);
+        count(number == currentDigit + previousDigit ? RIGHT : WRONG);
     }
 
 
@@ -98,16 +96,16 @@ function NumbersTask(options) {
         pushEvent(result);
 
         if (events.slice(-4).every(isFailure)) {
-            inverseSpeed += 100;
+            isi += 100;
             pushEvent('slower');
         }
 
         else if (events.slice(-4).every(isSuccess)) {
-            inverseSpeed -= 100;
+            isi -= 100;
             pushEvent('faster');
         }
 
-        options.onCount(result, inverseSpeed);
+        options.onCount(result, isi);
     }
 
 
@@ -122,10 +120,10 @@ function NumbersTask(options) {
 
             'Accuracy (normalized)',
 
-            'Starting inverse speed',
-            'Max inverse speed',
-            'Min inverse speed',
-            'Trials at min inverse speed'
+            'Starting ISI',
+            'Max ISI',
+            'Min ISI',
+            'Trials at minimum ISI'
         ]];
 
 
@@ -140,11 +138,11 @@ function NumbersTask(options) {
 
             var accuracy = right / (right + wrong + miss);
 
-            var startingInverseSpeed = _.first(evs)[1];
-            var maxInverseSpeed = _(evs).map((e) => e[1]).max();
-            var minInverseSpeed = _(evs).map((e) => e[1]).min();
-            var by = _(evs).filter((e) => e[1] === minInverseSpeed).countBy((e) => e[2]).value();
-            var trialsAtMinInverseSpeed = (by[RIGHT] || 0) + (by[WRONG] || 0) + (by[MISS] || 0);
+            var startingIsi = _.first(evs)[1];
+            var maxIsi = _(evs).map((e) => e[1]).max();
+            var minIsi = _(evs).map((e) => e[1]).min();
+            var by = _(evs).filter((e) => e[1] === minIsi).countBy((e) => e[2]).value();
+            var trialsAtMinIsi = (by[RIGHT] || 0) + (by[WRONG] || 0) + (by[MISS] || 0);
 
             sessions.push([
                     sessionStart,
@@ -153,10 +151,10 @@ function NumbersTask(options) {
                     wrong,
                     miss,
                     accuracy,
-                    startingInverseSpeed,
-                    maxInverseSpeed,
-                    minInverseSpeed,
-                    trialsAtMinInverseSpeed,
+                    startingIsi,
+                    maxIsi,
+                    minIsi,
+                    trialsAtMinIsi,
             ]);
         }
 
@@ -175,7 +173,7 @@ function NumbersTask(options) {
     }
 
 
-    this.NUMBERS = NUMBERS;
+    this.DIGITS = DIGITS;
     this.RESULTS = [RIGHT, MISS, WRONG];
     this.start = start;
     this.stop = stop;
