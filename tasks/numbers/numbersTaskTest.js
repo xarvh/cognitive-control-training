@@ -124,5 +124,27 @@ lab.experiment('Numbers Task', () => {
     });
 
 
+    lab.test('ignores answers given after task has been stopped', (done) => {
+        var count = 0;
+        var task = new NumbersTask({
+            formatTimestamp: (a) => a,
+            onCount: _.noop,
+            emitDigit: () => {
+                count++;
+                if (count < 4) return;
+                task.stop();
+                setImmediate(continueTest);
+            }
+        });
+
+        task.start(10, 0);
+        function continueTest() {
+            task.setUserAnswer(20);
+            assert.equal(_.last(task.getEvents()).name, 'stop');
+            done();
+        }
+
+    });
+
     lab.test('adjusts the difficulty to the user performance');
 });

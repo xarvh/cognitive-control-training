@@ -79,6 +79,7 @@ function NumbersTask(options) {
 
 
     function setUserAnswer(number) {
+        if (!nextDigitTimeoutId) return;
         if (!previousDigit) return;
         if (userHasAnswered) return;
         userHasAnswered = true;
@@ -162,7 +163,7 @@ function NumbersTask(options) {
             if (e.name !== STOP) return;
 
             var sessionEvents = events.slice(lastStart, index + 1);
-            assert(sessionEvents[0].name === START, sessionEvents[0].name);
+            assert(sessionEvents[0].name === START, JSON.stringify({events: events, lastStart: lastStart, index: index}));
             addSession(sessionEvents);
             lastStart = index + 1;
         });
