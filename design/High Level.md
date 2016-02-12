@@ -30,10 +30,6 @@ When I open this app I want to do effective exercises so I can live a normal lif
 - I need to feel safe, private, respected.
 - I need to get positive feedback from the exercises, and want to continue doing them.
 - I need to be able to do the exercises every day.
-  - I need to be able to use the app for extended periods without hurting my eyes.
-  - I need the exercises to work on any device and be accessibility friendly.
-  - I need to understand the audio numbers instantly (and other exercise specific concerns).
-  - I need to be able to use it without an internet connection.
 
 ## Workflow
 - Explain the theory and show authoritative evidence.
