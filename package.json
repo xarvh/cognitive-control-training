@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.html",
   "scripts": {
+    "build": "elm make src/main.elm src/psat.elm --output build/app.js",
     "test": "lab --verbose tasks/**/*Test.js"
   },
   "repository": {
@@ -17,8 +18,6 @@
   },
   "homepage": "http://xarvh.github.io/cortex/",
   "devDependencies": {
-    "lab": "^8.2.0",
-    "lodash": "^4.0.0",
-    "sinon": "^1.17.2"
+    "elm": "^8.2.0"
   }
 }
