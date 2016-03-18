@@ -48,6 +48,11 @@ a {
 }
 
 /* Number Task*/
+.number-buttons-container {
+     width: 280px;
+     height: 280px;
+     position: relative;
+ }
 
 #number-buttons-container {
   width: 280px;

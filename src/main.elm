@@ -1,8 +1,8 @@
 import StartApp
 import Signal exposing (Address)
 import Html exposing (..)
-import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Attributes exposing (style, class, value, disabled)
+import Html.Events exposing (onClick, on, targetValue)
 
 import Task
 import Effects
@@ -29,41 +29,68 @@ sumOfLastTwoDigits list = case list of
 
 
 -- View
+makeButtons : Signal.Address Psat.Action -> List Int -> List Html
+makeButtons address answers =
+    let
+        styleByAngle angle =
+            style
+                [ ("top", toString (280 / 2.5 * (1 - cos angle)) ++ "px")
+                , ("left", toString (280 / 2.5 * (1 + sin angle)) ++ "px")
+                ]
+
+
+        makeButton : Int -> Int -> Html
+        makeButton index answer =
+            div
+                [ onClick address <| Psat.UserAnswers answer
+                , class "number-button"
+                , styleByAngle <| turns <| (toFloat (index + 1)) / (toFloat (List.length answers + 1))
+                ]
+                [ text <| toString answer]
+    in
+       List.indexedMap makeButton answers
+
+
+brbr = br [] []
+
 view : Signal.Address Psat.Action -> Psat.Model -> Html
 view address model =
     div
         [ style [( "text-align", "center")]]
         [ div
             [ style [("display", "inline-block")] ]
-            [ div
-                []
-                [text "buttons here" ]
-            , button [ onClick address (if model.isRunning then Psat.Stop else Psat.Start) ] [ text (if model.isRunning then "Stop" else "Start") ]
+            [ div [ class "number-buttons-container" ] <| makeButtons address [2..18]
+            , button [ onClick address (if model.isRunning then Psat.Stop model.sessionId else Psat.Start) ] [ text (if model.isRunning then "Stop" else "Start") ]
             , br [] []
             , br [] []
             ]
-        , text <| "m" ++ toString (model.missedCount + model.wrongCount + model.rightCount)
+        , brbr
+        , text <| "Right " ++ toString model.rightCount
+        , brbr
+        , text <| "Wrong " ++ toString model.wrongCount
+        , brbr
+        , text <| "Missed " ++ toString model.missedCount
+        , brbr
+        , text "Duration: "
+        , input
+            [ value <| toString model.duration
+            , disabled model.isRunning
+            , on "input" targetValue (\newDuration -> Signal.message address <| Psat.UpdateDuration newDuration)
+            ]
+            []
+        , brbr
+        , text "Inter Stimulus Interval:"
+        , input
+            [ value <| toString model.isi
+            , disabled model.isRunning
+            , on "input" targetValue (\newIsi -> Signal.message address <| Psat.UpdateIsi newIsi)
+            ]
+            []
+        , brbr
+        , brbr
+        , button [] [ text "Download full session log" ]
+        , button [] [ text "Download aggregate data" ]
         ]
-
-{-
-            <div id='hideable'>
-                Duration: <input id='duration' value=5 /> minutes<br>
-                Inter-stimulus interval: <input id='isi' value=4000 /> milliseconds<br>
-                (this is the the time before the next digit is called).<br>
-                <br>
-
-                Right: <span id='right'></span><br>
-
-                Missed: <span id='miss'></span><br>
-
-                Wrong: <span id='wrong'></span><br>
-
-                <br>
-                <br>
-
-                <button id='download-log' >Download full session log</button><br>
-                <button id='download-aggregate' >Download aggregate data</button><br>
--}
 
 
 
@@ -72,7 +99,7 @@ view address model =
 
 app =
   StartApp.start
-    { init = Psat.init sumOfLastTwoDigits 1000
+    { init = Psat.init sumOfLastTwoDigits [1..9] 1000
     , update = Psat.update
     , view = view
     , inputs = [Psat.newPqSignal]

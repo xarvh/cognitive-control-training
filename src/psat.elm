@@ -6,6 +6,7 @@ import Task
 import Time
 import Signal
 import Effects
+import String
 
 
 import Debug exposing (log)
@@ -31,12 +32,15 @@ type Action
     | UserAnswers Answer
     | NewPqGiven Pq
     | Start
-    | Stop
+    | Stop Int
+    | UpdateIsi String
+    | UpdateDuration String
 
 
 -- Model
 type alias Model =
     { key : Key
+    , pqs : List Pq
     , userHasAnswered : Bool
     , isRunning : Bool
     , givenPqs : List Pq
@@ -44,11 +48,13 @@ type alias Model =
     , missedCount : Int
     , wrongCount : Int
     , rightCount : Int
+    , sessionId : Int
+    , duration : Int
     }
 
-init : Key -> Isi -> (Model, Effects.Effects Action)
-init key isi =
-    ( Model key True False [] isi 0 0 0
+init : Key -> List Pq -> Isi -> (Model, Effects.Effects Action)
+init key pqs isi =
+    ( Model key pqs True False [] isi 0 0 0 0 5
     , Effects.none
     )
 
@@ -69,11 +75,11 @@ taskDelayedTrigger delay successValue =
 -- There's no reason for this module to have ports or maintain an Effects dependency
 
 -- Outgoing port
-portMailboxRequestPq : Signal.Mailbox ()
+portMailboxRequestPq : Signal.Mailbox (List Pq)
 portMailboxRequestPq =
-  Signal.mailbox ()
+  Signal.mailbox []
 
-port requestPq : Signal.Signal ()
+port requestPq : Signal.Signal (List Pq)
 port requestPq =
   portMailboxRequestPq.signal
 
@@ -100,7 +106,7 @@ update action model =
         requestNewPq : Effects.Effects Action
         requestNewPq =
             Effects.task <| Task.andThen
-                (Signal.send portMailboxRequestPq.address ())
+                (Signal.send portMailboxRequestPq.address model.pqs)
                 (\_ -> taskDelayedTrigger (toFloat(model.isi) * Time.millisecond) AnswerTimeout)
 
 
@@ -134,14 +140,24 @@ update action model =
                 Start ->
                     ({ model | isRunning = True, givenPqs = [] }, requestNewPq)
 
+                UpdateIsi isiString ->
+                    case String.toInt isiString of
+                        Ok isi -> ({ model | isi = isi }, Effects.none)
+                        Err _ -> noop
+
+                UpdateDuration durationString ->
+                    case String.toInt durationString of
+                        Ok duration -> ({ model | duration = duration }, Effects.none)
+                        Err _ -> noop
+
                 _ ->
                     noop
 
         else
             case action of
 
-                Stop ->
-                    ({ model | isRunning = False }, Effects.none)
+                Stop sessionId ->
+                    ({ model | isRunning = False, sessionId = model.sessionId + 1}, Effects.none)
 
                 UserAnswers answerValue ->
                     (setAnswer (Just answerValue), Effects.none)
