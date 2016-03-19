@@ -25,30 +25,54 @@ sumOfLastTwoDigits list = case list of
 
 
 
-
-
-
 -- View
+buttonContainerHeight = 280
+buttonRadius = 36
+
+makeButton : Signal.Address Psat.Action -> Int -> Float -> Float -> Html
+makeButton address answer radius angle =
+    div
+        [ onClick address <| Psat.UserAnswers answer
+        , class "number-button"
+        , style
+            [ ("top", toString (buttonContainerHeight/2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px")
+            , ("left", toString (buttonContainerHeight/2 + 1.1 * radius * buttonRadius * sin (turns angle)) ++ "px")
+            ]
+        ]
+        [ text <| toString answer]
+
+
+-- Lay out the more frequent answers closer to the centre
 makeButtons : Signal.Address Psat.Action -> List Int -> List Html
 makeButtons address answers =
     let
-        styleByAngle angle =
-            style
-                [ ("top", toString (280 / 2.5 * (1 - cos angle)) ++ "px")
-                , ("left", toString (280 / 2.5 * (1 + sin angle)) ++ "px")
-                ]
-
-
-        makeButton : Int -> Int -> Html
-        makeButton index answer =
-            div
-                [ onClick address <| Psat.UserAnswers answer
-                , class "number-button"
-                , styleByAngle <| turns <| (toFloat (index + 1)) / (toFloat (List.length answers + 1))
-                ]
-                [ text <| toString answer]
+        bt = makeButton address
     in
-       List.indexedMap makeButton answers
+        -- centre
+        [   bt 10 0 0
+
+        -- inner circle (from top, clockwise)
+        ,   bt 11 1 <| 1/12
+        ,   bt 12 1 <| 3/12
+        ,   bt 13 1 <| 5/12
+        ,   bt 9 1 <| 7/12
+        ,   bt 8 1 <| 9/12
+        ,   bt 7 1 <| 11/12
+
+        -- outer circle (from top, clockwise)
+        ,   bt 14 2 <| 1/12
+        ,   bt 15 2 <| 2/12
+        ,   bt 16 2 <| 3/12
+        ,   bt 17 2 <| 4/12
+        ,   bt 18 2 <| 5/12
+
+        ,   bt 6 2 <| 7/12
+        ,   bt 5 2 <| 8/12
+        ,   bt 4 2 <| 9/12
+        ,   bt 3 2 <| 10/12
+        ,   bt 2 2 <| 11/12
+        ]
+
 
 
 brbr = br [] []

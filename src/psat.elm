@@ -45,9 +45,12 @@ type alias Model =
     , isRunning : Bool
     , givenPqs : List Pq
     , isi : Isi
+
+    -- TODO: once log is in place  maybe we can get rid of these three?
     , missedCount : Int
     , wrongCount : Int
     , rightCount : Int
+
     , sessionId : Int
     , duration : Int
     }
