@@ -174,7 +174,7 @@ updateWhenNotRunning action model =
         effect = case action of
             Start ->
                 Effects.batch
-                    [ requestNewPq model
+                    [ requestNewPq model'
                     , Effects.task <| taskDelayedTrigger (toFloat model.duration * Time.minute) <| AutomaticStop model'.sessionId
                     ]
 
