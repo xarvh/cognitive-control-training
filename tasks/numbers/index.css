@@ -1,36 +1,81 @@
+/* Base */
+
+html {
+  background-color: #ecf0f1;
+  color: #2c3e50;
+  font-size: 112.5%;
+}
 body {
-    background-color: rgb(128, 128, 128)
+  font-size: 1rem;
+  line-height: 1.6;
+  font-family: "Merriweather", serif
+}
+h1, h2, h3, button, input {
+  font-family: "Lato", sans-serif;
+}
+h1 {
+  font-size: 3.375rem;
+}
+h2 {
+  font-size: 2.25rem;
+}
+h3 {
+  font-size: 1.5rem;
+}
+p {
+  max-width: 829px;
+}
+small {
+  font-size: 0.667rem;
+  max-width: 335px;
+}
+button {
+  background-color: transparent;
+  border: 1px solid #3498db;
+  color: #3498db;
+  font-size: 1rem;
+  padding: .5rem 1rem;
+  cursor: pointer;
+}
+input {
+  border-width: 1px;
+  border-style: solid;
+  font-size: 1rem;
+  padding: .5rem;
+}
+a {
+  color: #3498db;
 }
 
- #number-buttons-container {
-     width: 280px;
-     height: 280px;
-     position: relative;
- }
+/* Number Task*/
 
+#number-buttons-container {
+  width: 280px;
+  height: 280px;
+  position: relative;
+}
 .number-button {
-    position: absolute;
-
-    width: 36px;
-    height: 36px;
-    line-height: 36px;
-    border-radius: 18px;
-
-    background-color: rgb(200, 200, 200);
-
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -khtml-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  background-color: #3498db;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  font-family: "Lato", sans-serif;
+  height: 2rem;
+  line-height: 2rem;
+  position: absolute;
+  width: 2rem;
 }
-
 .number-button:hover {
-    background-color: rgb(255, 255, 255);
+  background-color: #44a3e3;
+  # Lighter
 }
-
 .number-button:active {
-    background-color: rgb(55, 55, 55);
-    border: 1px solid rgb(200, 200, 200);
+  background-color: #2378b1;
+  # Darker
 }
