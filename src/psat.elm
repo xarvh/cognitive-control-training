@@ -61,7 +61,7 @@ model key pqs isi duration =
 
 
 type Action
-    = AnswerTimeout
+    = AnswerTimeout SessionId
     | UserAnswers Answer
     | NewPqGiven Pq
     | Start
@@ -102,7 +102,7 @@ requestNewPq : Model -> Effects.Effects Action
 requestNewPq model =
     Effects.task <| Task.andThen
         (Signal.send portMailboxRequestPq.address model.pqs)
-        (\_ -> taskDelayedTrigger (toFloat model.isi * Time.millisecond) AnswerTimeout)
+        (\_ -> taskDelayedTrigger (toFloat model.isi * Time.millisecond) (AnswerTimeout model.sessionId))
 
 
 setOutcome : Model -> Outcome -> Model
@@ -139,8 +139,8 @@ updateWhenRunning : Action -> Model -> (Model, Effects.Effects Action)
 updateWhenRunning action model =
     let
         effect = case action of
-            AnswerTimeout ->
-                requestNewPq model
+            AnswerTimeout sessionId ->
+                if sessionId /= model.sessionId then Effects.none else requestNewPq model
 
             _ ->
                 Effects.none
@@ -155,8 +155,8 @@ updateWhenRunning action model =
             UserAnswers answerValue ->
                 setAnswer model <| Just answerValue
 
-            AnswerTimeout ->
-                setAnswer model Nothing
+            AnswerTimeout sessionId ->
+                if sessionId /= model.sessionId then model else setAnswer model Nothing
 
             NewPqGiven pq ->
                 { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }
