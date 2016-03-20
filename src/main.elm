@@ -81,7 +81,7 @@ view address model =
         [ div
             [ style [("display", "inline-block")] ]
             [ div [ class "number-buttons-container" ] <| makeButtons address [2..18]
-            , button [ onClick address (if model.isRunning then Psat.Stop model.sessionId else Psat.Start) ] [ text (if model.isRunning then "Stop" else "Start") ]
+            , button [ onClick address (if model.isRunning then Psat.ManualStop else Psat.Start) ] [ text (if model.isRunning then "Stop" else "Start") ]
             , br [] []
             , br [] []
             ]

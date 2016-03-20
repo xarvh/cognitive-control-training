@@ -65,7 +65,8 @@ type Action
     | UserAnswers Answer
     | NewPqGiven Pq
     | Start
-    | Stop SessionId
+    | ManualStop
+    | AutomaticStop SessionId
     | UpdateIsi String
     | UpdateDuration String
 
@@ -101,7 +102,7 @@ requestNewPq : Model -> Effects.Effects Action
 requestNewPq model =
     Effects.task <| Task.andThen
         (Signal.send portMailboxRequestPq.address model.pqs)
-        (\_ -> taskDelayedTrigger (toFloat(model.isi) * Time.millisecond) AnswerTimeout)
+        (\_ -> taskDelayedTrigger (toFloat model.isi * Time.millisecond) AnswerTimeout)
 
 
 setOutcome : Model -> Outcome -> Model
@@ -145,10 +146,11 @@ updateWhenRunning action model =
                 Effects.none
 
         model' = case action of
-            Stop sessionId ->
-                if sessionId == model.sessionId
-                   then { model | isRunning = False, sessionId = model.sessionId + 1 }
-                   else model
+            ManualStop ->
+                { model | isRunning = False }
+
+            AutomaticStop sessionId ->
+                if sessionId /= model.sessionId then model else { model | isRunning = False }
 
             UserAnswers answerValue ->
                 setAnswer model <| Just answerValue
@@ -171,14 +173,21 @@ updateWhenNotRunning action model =
     let
         effect = case action of
             Start ->
-                requestNewPq model
+                Effects.batch
+                    [ requestNewPq model
+                    , Effects.task <| taskDelayedTrigger (toFloat model.duration * Time.minute) <| AutomaticStop model'.sessionId
+                    ]
 
             _ ->
                 Effects.none
 
         model' = case action of
             Start ->
-                { model | isRunning = True, givenPqs = [] }
+                { model
+                | isRunning = True
+                , sessionId = model.sessionId + 1
+                , givenPqs = []
+                }
 
             UpdateIsi isiString ->
                 case String.toInt isiString of
