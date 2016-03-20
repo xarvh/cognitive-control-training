@@ -9,23 +9,21 @@ import Effects
 
 import Psat
 
-
-
-
 import Debug exposing (log)
 
 
-
--- Key
+--
+-- Answers Key
+--
 sumOfLastTwoDigits : Psat.Key
 sumOfLastTwoDigits list = case list of
     a :: b :: _ -> Just (a + b)
     _ -> Nothing
 
 
-
-
+--
 -- View
+--
 buttonContainerHeight = 280
 buttonRadius = 36
 
@@ -74,7 +72,6 @@ makeButtons address answers =
         ]
 
 
-
 brbr = br [] []
 
 view : Signal.Address Psat.Action -> Psat.Model -> Html
@@ -117,13 +114,9 @@ view address model =
         ]
 
 
-
-
-
-
 app =
   StartApp.start
-    { init = Psat.init sumOfLastTwoDigits [1..9] 1000
+    { init = (Psat.model sumOfLastTwoDigits [1..9] 1000 5, Effects.none)
     , update = Psat.update
     , view = view
     , inputs = [Psat.newPqSignal]

@@ -1,6 +1,9 @@
--- Paced (Auditory) Serial Addition Test
+--
+-- Paced Serial Task
+--
+-- This is intended as an abstract, pure module that handles all the task score and time keeping.
+--
 module Psat where
-
 
 import Task
 import Time
@@ -8,36 +11,33 @@ import Signal
 import Effects
 import String
 
-
-import Debug exposing (log)
-
+--import Debug exposing (log)
 
 
+--
+-- HELPERS
+--
+taskDelayedTrigger : Time.Time -> a -> Task.Task x a
+taskDelayedTrigger delay successValue =
+    Task.andThen (Task.sleep delay) (\_ -> Task.succeed successValue)
 
 
--- Support types
+--
+-- Model
+--
 type alias Answer = Int
 type alias Pq = Int -- Partial Question. It's "partial" because it takes two+ questions to have a single answer.
 type alias Key = (List Pq -> Maybe Answer)
-
-type alias Isi = Int
 
 type Outcome
     = Right
     | Wrong
     | Missed
 
-type Action
-    = AnswerTimeout
-    | UserAnswers Answer
-    | NewPqGiven Pq
-    | Start
-    | Stop Int
-    | UpdateIsi String
-    | UpdateDuration String
+type alias Isi = Int
+type alias Duration = Int
+type alias SessionId = Int
 
-
--- Model
 type alias Model =
     { key : Key
     , pqs : List Pq
@@ -51,28 +51,28 @@ type alias Model =
     , wrongCount : Int
     , rightCount : Int
 
-    , sessionId : Int
-    , duration : Int
+    , sessionId : SessionId
+    , duration : Duration
     }
 
-init : Key -> List Pq -> Isi -> (Model, Effects.Effects Action)
-init key pqs isi =
-    ( Model key pqs True False [] isi 0 0 0 0 5
-    , Effects.none
-    )
+model : Key -> List Pq -> Isi -> Duration -> Model
+model key pqs isi duration =
+    Model key pqs True False [] isi 0 0 0 0 duration
 
 
+type Action
+    = AnswerTimeout
+    | UserAnswers Answer
+    | NewPqGiven Pq
+    | Start
+    | Stop SessionId
+    | UpdateIsi String
+    | UpdateDuration String
 
--- HELPERS
-taskDelayedTrigger : Time.Time -> a -> Task.Task x a
-taskDelayedTrigger delay successValue =
-    Task.andThen (Task.sleep delay) (\_ -> Task.succeed successValue)
 
-
-
-
-
+--
 -- PORTS
+--
 -- TODO: remove all ports from the module, let main provide a method to create the appropriate Task/Effect
 -- have update be `update : Action -> Model -> (Model, Maybe Task Action)`
 -- There's no reason for this module to have ports or maintain an Effects dependency
@@ -94,82 +94,118 @@ newPqSignal =
   Signal.map NewPqGiven newPq
 
 
-
-
-
-
-
+--
 -- Update
-update : Action -> Model -> (Model, Effects.Effects Action)
-update action model =
+--
+requestNewPq : Model -> Effects.Effects Action
+requestNewPq model =
+    Effects.task <| Task.andThen
+        (Signal.send portMailboxRequestPq.address model.pqs)
+        (\_ -> taskDelayedTrigger (toFloat(model.isi) * Time.millisecond) AnswerTimeout)
 
+
+setOutcome : Model -> Outcome -> Model
+setOutcome model outcome =
+    if model.userHasAnswered
+    then model
+    else
+        let
+            m = { model | userHasAnswered = True }
+        in case outcome of
+            -- TODO is there a less stupid way to do this? >_<
+            Right -> { m | rightCount = m.rightCount + 1 }
+            Wrong -> { m | wrongCount = m.wrongCount + 1 }
+            Missed -> { m | missedCount = m.missedCount + 1 }
+
+
+setAnswer : Model -> Maybe Answer -> Model
+setAnswer model maybeAnswer =
+    case model.key model.givenPqs of
+        Nothing ->
+            model
+
+        Just correctAnswer ->
+            case maybeAnswer of
+                Nothing ->
+                    setOutcome model Missed
+
+                Just answer ->
+                    setOutcome model <| if answer == correctAnswer then Right else Wrong
+
+
+
+updateWhenRunning : Action -> Model -> (Model, Effects.Effects Action)
+updateWhenRunning action model =
     let
-        noop = (model, Effects.none)
+        effect = case action of
+            AnswerTimeout ->
+                requestNewPq model
 
-        requestNewPq : Effects.Effects Action
-        requestNewPq =
-            Effects.task <| Task.andThen
-                (Signal.send portMailboxRequestPq.address model.pqs)
-                (\_ -> taskDelayedTrigger (toFloat(model.isi) * Time.millisecond) AnswerTimeout)
+            _ ->
+                Effects.none
 
+        model' = case action of
+            Stop sessionId ->
+                if sessionId == model.sessionId
+                   then { model | isRunning = False, sessionId = model.sessionId + 1 }
+                   else model
 
-        setOutcome : Outcome -> Model
-        setOutcome outcome =
-            if model.userHasAnswered
-            then model
-            else
-                let
-                    m = { model | userHasAnswered = True }
-                in case outcome of
-                    -- TODO is there a less stupid way to do this? >_<
-                    Right -> { m | rightCount = m.rightCount + 1 }
-                    Wrong -> { m | wrongCount = m.wrongCount + 1 }
-                    Missed -> { m | missedCount = m.missedCount + 1 }
+            UserAnswers answerValue ->
+                setAnswer model <| Just answerValue
 
+            AnswerTimeout ->
+                setAnswer model Nothing
 
-        setAnswer : Maybe Answer -> Model
-        setAnswer maybeAnswer =
-            case model.key model.givenPqs of
-                Nothing -> model
-                Just correctAnswer ->
-                    case maybeAnswer of
-                        Nothing -> setOutcome Missed
-                        Just answer -> setOutcome (if answer == correctAnswer then Right else Wrong)
+            NewPqGiven pq ->
+                { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }
+
+            _ ->
+                model
 
     in
-        if not model.isRunning
-        then
-            case action of
-                Start ->
-                    ({ model | isRunning = True, givenPqs = [] }, requestNewPq)
+       (model', effect)
 
-                UpdateIsi isiString ->
-                    case String.toInt isiString of
-                        Ok isi -> ({ model | isi = isi }, Effects.none)
-                        Err _ -> noop
 
-                UpdateDuration durationString ->
-                    case String.toInt durationString of
-                        Ok duration -> ({ model | duration = duration }, Effects.none)
-                        Err _ -> noop
+updateWhenNotRunning : Action -> Model -> (Model, Effects.Effects Action)
+updateWhenNotRunning action model =
+    let
+        effect = case action of
+            Start ->
+                requestNewPq model
 
-                _ ->
-                    noop
+            _ ->
+                Effects.none
 
-        else
-            case action of
+        model' = case action of
+            Start ->
+                { model | isRunning = True, givenPqs = [] }
 
-                Stop sessionId ->
-                    ({ model | isRunning = False, sessionId = model.sessionId + 1}, Effects.none)
+            UpdateIsi isiString ->
+                case String.toInt isiString of
+                    Ok isi ->
+                        { model | isi = isi }
 
-                UserAnswers answerValue ->
-                    (setAnswer (Just answerValue), Effects.none)
+                    Err _ ->
+                        model
 
-                AnswerTimeout ->
-                    (setAnswer Nothing, requestNewPq)
+            UpdateDuration durationString ->
+                case String.toInt durationString of
+                    Ok duration ->
+                        { model | duration = duration }
 
-                NewPqGiven pq ->
-                    ({ model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }, Effects.none)
+                    Err _ ->
+                        model
 
-                _ ->
-                    noop
+            _ ->
+                model
+
+    in
+       (model', effect)
+
+
+update : Action -> Model -> (Model, Effects.Effects Action)
+update action model =
+    let
+        update' = if model.isRunning then updateWhenRunning else updateWhenNotRunning
+    in
+        update' action model
