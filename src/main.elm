@@ -3,6 +3,7 @@ import Html exposing (..)
 import Html.Attributes exposing (style, class, value, disabled)
 import Html.Events exposing (onClick, on, targetValue)
 
+import Time
 import Task
 import Effects
 
@@ -124,20 +125,15 @@ taskDelayedTrigger delay successValue =
 --
 -- PORTS
 --
--- TODO: provide a method to create the appropriate Task/Effect
--- have update be `update : Action -> Model -> (Model, Maybe Task Action)`
 
-{-
--- Outgoing port
-portMailboxRequestPq : Signal.Mailbox (List pq)
-portMailboxRequestPq =
-  Signal.mailbox []
+-- Sound port
+playSoundPortMailbox : Signal.Mailbox Int
+playSoundPortMailbox =
+  Signal.mailbox 0
 
-port requestPq : Signal.Signal (List pq)
-port requestPq =
-  portMailboxRequestPq.signal
-  -}
-
+port playSoundPort : Signal.Signal Int
+port playSoundPort =
+  playSoundPortMailbox.signal
 
 
 
@@ -150,34 +146,52 @@ port requestPq =
 
 model0 = Psat.model sumOfLastTwoDigits [1..9] 1000 5
 
-
-actionsMailbox : Signal.Mailbox (Maybe action)
+actionsMailbox : Signal.Mailbox (Psat.Action Int Int)
 actionsMailbox =
-    Signal.mailbox Nothing
+    Signal.mailbox Psat.ManualStop
 
--- updateStep : action -> (model, Effects.Effects action) -> (model, Effects.Effects action)
-updateStep action (oldModel, accumulatedEffects) =
+
+update : Psat.Action Int Int -> (Psat.Model Int Int, List (Psat.Trigger Int Int)) -> (Psat.Model Int Int, List (Psat.Trigger Int Int))
+update action (model, triggers) =
+    Psat.update action model
+
+modelAndTriggersSignal =
+    Signal.foldp update (model0, []) actionsMailbox.signal
+
+
+
+triggerToTask : Signal.Address (Psat.Action Int Int) -> Psat.Trigger Int Int -> Task.Task x ()
+triggerToTask address trigger =
+    case trigger of
+        Psat.TriggerDelayedAction delay action ->
+            Task.andThen (Task.sleep delay) (\_ -> Signal.send address action)
+
+        Psat.TriggerSound maybePq ->
+            case maybePq of
+                Just pq -> Signal.send playSoundPortMailbox.address pq
+                Nothing -> Task.succeed ()
+
+
+
+triggersToTask : Signal.Address (Psat.Action Int Int) -> List (Psat.Trigger Int Int) -> Task.Task x ()
+triggersToTask address triggers =
     let
-        (newModel, additionalEffects) = Psat.update action oldModel
+        tasks = List.map (triggerToTask address) triggers
+
+        squash taskA taskB =
+            Task.spawn taskA `Task.andThen` (\_ -> taskB)
+
     in
-        (newModel, Effects.batch [accumulatedEffects, additionalEffects])
-
--- update : List action -> (model, Effects.Effects action) -> (model, Effects.Effects action)
-update actions (model, _) =
-    List.foldl updateStep (model, Effects.none) actions
-
-
--- effectsAndModel : Signal (model, Effects action)
-(modelSignal, triggersSignal) =
-    Signal.foldp update (model0, []) messages.signal
+        List.foldl squash (Task.succeed ()) tasks
 
 
 
 
 main =
-    Signal.map (view actionsMailbox.address) model
+    Signal.map (view actionsMailbox.address << fst) modelAndTriggersSignal
+
 
 port tasks : Signal (Task.Task Effects.Never ())
 port tasks =
-    Signal.map (Effects.toTask actionsMailbox.address ) 
+    Signal.map (triggersToTask actionsMailbox.address << snd) modelAndTriggersSignal
 

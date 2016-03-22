@@ -1,2 +1,2 @@
-var elmApp = Elm.fullscreen(Elm.Main, { newPq: -1 })
+var elmApp = Elm.fullscreen(Elm.Main)
 registerElmPsatPorts(elmApp);

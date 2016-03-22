@@ -111,7 +111,7 @@ getTriggers model action =
             :: getNewPqTriggers model
 
         AnswerTimeout sessionId ->
-            if sessionId /= model.sessionId
+            if sessionId /= model.sessionId || not model.isRunning
             then []
             else getNewPqTriggers model
 
