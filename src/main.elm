@@ -1,4 +1,3 @@
-import StartApp
 import Signal exposing (Address)
 import Html exposing (..)
 import Html.Attributes exposing (style, class, value, disabled)
@@ -15,7 +14,7 @@ import Debug exposing (log)
 --
 -- Answers Key
 --
-sumOfLastTwoDigits : Psat.Key
+sumOfLastTwoDigits : Psat.Key Int Int
 sumOfLastTwoDigits list = case list of
     a :: b :: _ -> Just (a + b)
     _ -> Nothing
@@ -27,7 +26,7 @@ sumOfLastTwoDigits list = case list of
 buttonContainerHeight = 280
 buttonRadius = 36
 
-makeButton : Signal.Address Psat.Action -> Int -> Float -> Float -> Html
+makeButton : Signal.Address (Psat.Action Int Int) -> Int -> Float -> Float -> Html
 makeButton address answer radius angle =
     div
         [ onClick address <| Psat.UserAnswers answer
@@ -41,7 +40,7 @@ makeButton address answer radius angle =
 
 
 -- Lay out the more frequent answers closer to the centre
-makeButtons : Signal.Address Psat.Action -> List Int -> List Html
+makeButtons : Signal.Address (Psat.Action Int Int) -> List Int -> List Html
 makeButtons address answers =
     let
         bt = makeButton address
@@ -74,7 +73,7 @@ makeButtons address answers =
 
 brbr = br [] []
 
-view : Signal.Address Psat.Action -> Psat.Model -> Html
+view : Signal.Address (Psat.Action Int Int) -> Psat.Model Int Int -> Html
 view address model =
     div
         [ style [( "text-align", "center")]]
@@ -114,17 +113,71 @@ view address model =
         ]
 
 
-app =
-  StartApp.start
-    { init = (Psat.model sumOfLastTwoDigits [1..9] 1000 5, Effects.none)
-    , update = Psat.update
-    , view = view
-    , inputs = [Psat.newPqSignal]
-    }
+-------------------------------------------------------------------
+taskDelayedTrigger : Time.Time -> a -> Task.Task x a
+taskDelayedTrigger delay successValue =
+    Task.andThen (Task.sleep delay) (\_ -> Task.succeed successValue)
 
 
-main = app.html
+
+
+--
+-- PORTS
+--
+-- TODO: provide a method to create the appropriate Task/Effect
+-- have update be `update : Action -> Model -> (Model, Maybe Task Action)`
+
+{-
+-- Outgoing port
+portMailboxRequestPq : Signal.Mailbox (List pq)
+portMailboxRequestPq =
+  Signal.mailbox []
+
+port requestPq : Signal.Signal (List pq)
+port requestPq =
+  portMailboxRequestPq.signal
+  -}
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------------------
+
+model0 = Psat.model sumOfLastTwoDigits [1..9] 1000 5
+
+
+actionsMailbox : Signal.Mailbox (Maybe action)
+actionsMailbox =
+    Signal.mailbox Nothing
+
+-- updateStep : action -> (model, Effects.Effects action) -> (model, Effects.Effects action)
+updateStep action (oldModel, accumulatedEffects) =
+    let
+        (newModel, additionalEffects) = Psat.update action oldModel
+    in
+        (newModel, Effects.batch [accumulatedEffects, additionalEffects])
+
+-- update : List action -> (model, Effects.Effects action) -> (model, Effects.Effects action)
+update actions (model, _) =
+    List.foldl updateStep (model, Effects.none) actions
+
+
+-- effectsAndModel : Signal (model, Effects action)
+(modelSignal, triggersSignal) =
+    Signal.foldp update (model0, []) messages.signal
+
+
+
+
+main =
+    Signal.map (view actionsMailbox.address) model
 
 port tasks : Signal (Task.Task Effects.Never ())
 port tasks =
-  app.tasks
+    Signal.map (Effects.toTask actionsMailbox.address ) 
+

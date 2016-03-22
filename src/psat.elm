@@ -8,27 +8,38 @@ module Psat where
 import Task
 import Time
 import Signal
-import Effects
 import String
+import Random
+import Debug --exposing (log)
 
---import Debug exposing (log)
+{- TODO: Add logs
+log format:
+    Timestamp SessionId Isi Event
+
+    EventName = Action Action | Outcome Outcome
+
+    EventName = Start | Stop | Right | Missed | Wrong
+-}
 
 
 --
 -- HELPERS
 --
-taskDelayedTrigger : Time.Time -> a -> Task.Task x a
-taskDelayedTrigger delay successValue =
-    Task.andThen (Task.sleep delay) (\_ -> Task.succeed successValue)
+-- (This is stuff that should really stay in a libray... -_-
+--
+randomChoice : List a -> Random.Seed -> (Maybe a, Random.Seed)
+randomChoice list seed =
+    let
+        generator = Random.int 0 (List.length list - 1)
+        (index, seed') = Random.generate generator seed
+        choice = List.head <| List.drop index list
+    in
+        (choice, seed')
 
 
 --
 -- Model
 --
-type alias Answer = Int
-type alias Pq = Int -- Partial Question. It's "partial" because it takes two+ questions to have a single answer.
-type alias Key = (List Pq -> Maybe Answer)
-
 type Outcome
     = Right
     | Wrong
@@ -38,12 +49,14 @@ type alias Isi = Int
 type alias Duration = Int
 type alias SessionId = Int
 
-type alias Model =
-    { key : Key
-    , pqs : List Pq
+type alias Key pq answer = (List pq -> Maybe answer)
+
+type alias Model pq answer =
+    { key : Key pq answer
+    , pqs : List pq
     , userHasAnswered : Bool
     , isRunning : Bool
-    , givenPqs : List Pq
+    , givenPqs : List pq
     , isi : Isi
 
     -- TODO: once log is in place  maybe we can get rid of these three?
@@ -53,17 +66,19 @@ type alias Model =
 
     , sessionId : SessionId
     , duration : Duration
+    , seed : Random.Seed
     }
 
-model : Key -> List Pq -> Isi -> Duration -> Model
+-- TODO: initialise seed with timer
+model : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
 model key pqs isi duration =
-    Model key pqs True False [] isi 0 0 0 0 duration
+    Model key pqs True False [] isi 0 0 0 0 duration (Random.initialSeed 0)
 
 
-type Action
+type Action pq answer
     = AnswerTimeout SessionId
-    | UserAnswers Answer
-    | NewPqGiven Pq
+    | UserAnswers answer
+    | NewPqGiven pq
     | Start
     | ManualStop
     | AutomaticStop SessionId
@@ -72,40 +87,42 @@ type Action
 
 
 --
--- PORTS
+-- Triggers
 --
--- TODO: remove all ports from the module, let main provide a method to create the appropriate Task/Effect
--- have update be `update : Action -> Model -> (Model, Maybe Task Action)`
--- There's no reason for this module to have ports or maintain an Effects dependency
+-- They are kind of Effects, but they offload the actual dirty work to the caller
+--
+type Trigger pq answer
+    = TriggerDelayedAction Time.Time (Action pq answer)
+    | TriggerSound (Maybe pq)
 
--- Outgoing port
-portMailboxRequestPq : Signal.Mailbox (List Pq)
-portMailboxRequestPq =
-  Signal.mailbox []
 
-port requestPq : Signal.Signal (List Pq)
-port requestPq =
-  portMailboxRequestPq.signal
+getNewPqTriggers : Model pq answer -> List (Trigger pq answer)
+getNewPqTriggers model =
+    [ TriggerDelayedAction (toFloat model.isi * Time.millisecond) (AnswerTimeout model.sessionId)
+    , TriggerSound (List.head model.givenPqs)
+    ]
 
--- Incoming port
--- TODO: eliminate this and use elm-core random generators instead
-port newPq : Signal.Signal Pq
-newPqSignal : Signal.Signal Action
-newPqSignal =
-  Signal.map NewPqGiven newPq
+
+getTriggers : Model pq answer -> Action pq answer -> List (Trigger pq answer)
+getTriggers model action =
+    case action of
+        Start ->
+            TriggerDelayedAction (toFloat model.duration * Time.minute) (AutomaticStop model.sessionId)
+            :: getNewPqTriggers model
+
+        AnswerTimeout sessionId ->
+            if sessionId /= model.sessionId
+            then []
+            else getNewPqTriggers model
+
+        _ ->
+            []
 
 
 --
--- Update
+-- Model update
 --
-requestNewPq : Model -> Effects.Effects Action
-requestNewPq model =
-    Effects.task <| Task.andThen
-        (Signal.send portMailboxRequestPq.address model.pqs)
-        (\_ -> taskDelayedTrigger (toFloat model.isi * Time.millisecond) (AnswerTimeout model.sessionId))
-
-
-setOutcome : Model -> Outcome -> Model
+setOutcome : Model pq answer -> Outcome -> Model pq answer
 setOutcome model outcome =
     if model.userHasAnswered
     then model
@@ -119,7 +136,7 @@ setOutcome model outcome =
             Missed -> { m | missedCount = m.missedCount + 1 }
 
 
-setAnswer : Model -> Maybe Answer -> Model
+setAnswer : Model pq answer -> Maybe answer -> Model pq answer
 setAnswer model maybeAnswer =
     case model.key model.givenPqs of
         Nothing ->
@@ -134,87 +151,79 @@ setAnswer model maybeAnswer =
                     setOutcome model <| if answer == correctAnswer then Right else Wrong
 
 
+addRandomPq : Model pq answer -> Model pq answer
+addRandomPq model =
+    let
+        (pq, seed) = randomChoice model.pqs model.seed
+    in
+       case pq of
+           Nothing -> Debug.crash "Zero partial qustions specified!"
+           Just pq' ->
+               { model
+               | givenPqs = pq' :: model.givenPqs
+               , seed = seed
+               }
 
-updateWhenRunning : Action -> Model -> (Model, Effects.Effects Action)
+
+updateWhenRunning : Action pq answer -> Model pq answer -> Model pq answer
 updateWhenRunning action model =
-    let
-        effect = case action of
-            AnswerTimeout sessionId ->
-                if sessionId /= model.sessionId then Effects.none else requestNewPq model
+    case action of
+        ManualStop ->
+            { model | isRunning = False }
 
-            _ ->
-                Effects.none
+        AutomaticStop sessionId ->
+            if sessionId /= model.sessionId then model else { model | isRunning = False }
 
-        model' = case action of
-            ManualStop ->
-                { model | isRunning = False }
+        UserAnswers answerValue ->
+            setAnswer model <| Just answerValue
 
-            AutomaticStop sessionId ->
-                if sessionId /= model.sessionId then model else { model | isRunning = False }
+        AnswerTimeout sessionId ->
+            if sessionId /= model.sessionId then model else addRandomPq <| setAnswer model Nothing
 
-            UserAnswers answerValue ->
-                setAnswer model <| Just answerValue
+        NewPqGiven pq ->
+            { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }
 
-            AnswerTimeout sessionId ->
-                if sessionId /= model.sessionId then model else setAnswer model Nothing
-
-            NewPqGiven pq ->
-                { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }
-
-            _ ->
-                model
-
-    in
-       (model', effect)
+        _ ->
+            model
 
 
-updateWhenNotRunning : Action -> Model -> (Model, Effects.Effects Action)
+updateWhenNotRunning : Action pq answer -> Model pq answer -> Model pq answer
 updateWhenNotRunning action model =
-    let
-        effect = case action of
-            Start ->
-                Effects.batch
-                    [ requestNewPq model'
-                    , Effects.task <| taskDelayedTrigger (toFloat model.duration * Time.minute) <| AutomaticStop model'.sessionId
-                    ]
+    case action of
+        Start ->
+            { model
+            | isRunning = True
+            , sessionId = model.sessionId + 1
+            , givenPqs = []
+            } |> addRandomPq
 
-            _ ->
-                Effects.none
+        UpdateIsi isiString ->
+            case String.toInt isiString of
+                Ok isi ->
+                    { model | isi = isi }
 
-        model' = case action of
-            Start ->
-                { model
-                | isRunning = True
-                , sessionId = model.sessionId + 1
-                , givenPqs = []
-                }
+                Err _ ->
+                    model
 
-            UpdateIsi isiString ->
-                case String.toInt isiString of
-                    Ok isi ->
-                        { model | isi = isi }
+        UpdateDuration durationString ->
+            case String.toInt durationString of
+                Ok duration ->
+                    { model | duration = duration }
 
-                    Err _ ->
-                        model
+                Err _ ->
+                    model
 
-            UpdateDuration durationString ->
-                case String.toInt durationString of
-                    Ok duration ->
-                        { model | duration = duration }
-
-                    Err _ ->
-                        model
-
-            _ ->
-                model
-
-    in
-       (model', effect)
+        _ ->
+            model
 
 
-update : Action -> Model -> (Model, Effects.Effects Action)
+--
+-- Main update
+--
+update : Action pq answer -> Model pq answer -> (Model pq answer, List (Trigger pq answer))
 update action model =
     let
-        update' = if model.isRunning then updateWhenRunning else updateWhenNotRunning
+        updatedModel =
+            (if model.isRunning then updateWhenRunning else updateWhenNotRunning) action model
     in
-        update' action model
+       (updatedModel, getTriggers updatedModel action)
