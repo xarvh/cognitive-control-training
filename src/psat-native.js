@@ -8,13 +8,7 @@ function registerElmPsatPorts(elmApp) {
         return a;
     });
 
-    elmApp.ports.requestPq.subscribe(function (availablePqs) {
-
-        var randomIndex = Math.floor(Math.random() * availablePqs.length);
-        var randomDigit = availablePqs[randomIndex];
-
-        sounds[randomIndex].play();
-
-        elmApp.ports.newPq.send(randomDigit);
+    elmApp.ports.playSoundPort.subscribe(function (pq) {
+        sounds[pq - 1].play();
     });
 }
