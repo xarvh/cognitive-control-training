@@ -10,7 +10,7 @@ import Time
 import Signal
 import String
 import Random
-import Debug --exposing (log)
+import Debug exposing (log)
 
 {- TODO: Add logs
 log format:
@@ -161,6 +161,7 @@ addRandomPq model =
            Just pq' ->
                { model
                | givenPqs = pq' :: model.givenPqs
+               , userHasAnswered = False
                , seed = seed
                }
 
@@ -178,7 +179,7 @@ updateWhenRunning action model =
             setAnswer model <| Just answerValue
 
         AnswerTimeout sessionId ->
-            if sessionId /= model.sessionId then model else addRandomPq <| setAnswer model Nothing
+            if sessionId /= model.sessionId then model else (setAnswer model Nothing |> addRandomPq)
 
         NewPqGiven pq ->
             { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }

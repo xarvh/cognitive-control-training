@@ -9,7 +9,6 @@ function registerElmPsatPorts(elmApp) {
     });
 
     elmApp.ports.playSoundPort.subscribe(function (pq) {
-        console.log('-------', pq);
         sounds[pq - 1].play();
     });
 }

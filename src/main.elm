@@ -5,7 +5,6 @@ import Html.Events exposing (onClick, on, targetValue)
 
 import Time
 import Task
-import Effects
 
 import Psat
 
@@ -144,7 +143,7 @@ port playSoundPort =
 
 -------------------------------------------------------------------
 
-model0 = Psat.model sumOfLastTwoDigits [1..9] 1000 5
+model0 = Psat.model sumOfLastTwoDigits [1..9] 3000 5
 
 actionsMailbox : Signal.Mailbox (Psat.Action Int Int)
 actionsMailbox =
@@ -191,7 +190,7 @@ main =
     Signal.map (view actionsMailbox.address << fst) modelAndTriggersSignal
 
 
-port tasks : Signal (Task.Task Effects.Never ())
+port tasks : Signal (Task.Task x ())
 port tasks =
     Signal.map (triggersToTask actionsMailbox.address << snd) modelAndTriggersSignal
 
