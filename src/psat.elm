@@ -26,6 +26,13 @@ randomChoice list seed =
         (choice, seed')
 
 
+takeWhile : (a -> Bool) -> List a -> List a
+takeWhile predicate list =
+    case list of
+        x :: xs -> if predicate x then x :: takeWhile predicate xs else []
+        [] -> []
+
+
 --
 -- Model
 --
@@ -108,6 +115,26 @@ getTriggers model action =
 --
 -- Model update
 --
+
+-- isi must increase if there are 4 failures in a row, and decrease if there are 4 success in a row.
+outcomeDelta : (Outcome -> Bool) -> List Outcome -> Int
+outcomeDelta predicate outcomes =
+   let
+       count = List.length <| takeWhile predicate outcomes
+   in
+      if count > 0 && rem count 4 == 0 then 1 else 0
+
+
+isiDirection : List Outcome -> Int
+isiDirection outcomes =
+    outcomeDelta ((/=) Right) outcomes - outcomeDelta ((==) Right) outcomes
+
+
+setIsi : Model a b -> Model a b
+setIsi model =
+    { model | isi = isiDirection model.outcomes * 100 + model.isi }
+
+
 setOutcome : Model pq answer -> Outcome -> Model pq answer
 setOutcome model outcome =
     if model.userHasAnswered
@@ -116,7 +143,7 @@ setOutcome model outcome =
         { model
         | userHasAnswered = True
         , outcomes = outcome :: model.outcomes
-        }
+        } |> setIsi
 
 
 setAnswer : Model pq answer -> Maybe answer -> Model pq answer
