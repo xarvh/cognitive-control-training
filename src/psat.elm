@@ -55,25 +55,21 @@ type alias Model pq answer =
     , pqs : List pq
     , userHasAnswered : Bool
     , isRunning : Bool
-    , givenPqs : List pq
+    , addedPqs : List pq
     , isi : Isi
-
-    -- TODO: once log is in place  maybe we can get rid of these three?
-    , missedCount : Int
-    , wrongCount : Int
-    , rightCount : Int
 
     , sessionId : SessionId
     , duration : Duration
     , seed : Random.Seed
 
     , log : List (Time.Time, Action pq answer)
+    , outcomes : List Outcome
     }
 
 -- TODO: initialise seed with timer
 model : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
 model key pqs isi duration =
-    Model key pqs True False [] isi 0 0 0 0 duration (Random.initialSeed 0) []
+    Model key pqs True False [] isi 0 duration (Random.initialSeed 0) [] []
 
 
 --
@@ -89,7 +85,7 @@ type Trigger pq answer
 getNewPqTriggers : Model pq answer -> List (Trigger pq answer)
 getNewPqTriggers model =
     [ TriggerDelayedAction (toFloat model.isi * Time.millisecond) (AnswerTimeout model.sessionId)
-    , TriggerSound (List.head model.givenPqs)
+    , TriggerSound (List.head model.addedPqs)
     ]
 
 
@@ -117,18 +113,15 @@ setOutcome model outcome =
     if model.userHasAnswered
     then model
     else
-        let
-            m = { model | userHasAnswered = True }
-        in case outcome of
-            -- TODO is there a less stupid way to do this? >_<
-            Right -> { m | rightCount = m.rightCount + 1 }
-            Wrong -> { m | wrongCount = m.wrongCount + 1 }
-            Missed -> { m | missedCount = m.missedCount + 1 }
+        { model
+        | userHasAnswered = True
+        , outcomes = outcome :: model.outcomes
+        }
 
 
 setAnswer : Model pq answer -> Maybe answer -> Model pq answer
 setAnswer model maybeAnswer =
-    case model.key model.givenPqs of
+    case model.key model.addedPqs of
         Nothing ->
             model
 
@@ -150,7 +143,7 @@ addRandomPq model =
            Nothing -> Debug.crash "Zero partial qustions specified!"
            Just pq' ->
                { model
-               | givenPqs = pq' :: model.givenPqs
+               | addedPqs = pq' :: model.addedPqs
                , userHasAnswered = False
                , seed = seed
                }
@@ -182,7 +175,8 @@ updateWhenNotRunning action model =
             { model
             | isRunning = True
             , sessionId = model.sessionId + 1
-            , givenPqs = []
+            , addedPqs = []
+            , outcomes = []
             } |> addRandomPq
 
         UpdateIsi isiString ->

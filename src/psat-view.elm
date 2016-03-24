@@ -59,6 +59,9 @@ makeButtons address answers =
 
 brbr = br [] []
 
+countOutcomes model outcome =
+    toString <| List.length <| List.filter ((==) outcome) model.outcomes
+
 view : Signal.Address (Psat.Action Int Int) -> Psat.Model Int Int -> Html
 view address model =
     div
@@ -71,11 +74,11 @@ view address model =
             , br [] []
             ]
         , brbr
-        , text <| "Right " ++ toString model.rightCount
+        , text <| "Right " ++ countOutcomes model Psat.Right
         , brbr
-        , text <| "Wrong " ++ toString model.wrongCount
+        , text <| "Wrong " ++ countOutcomes model Psat.Wrong
         , brbr
-        , text <| "Missed " ++ toString model.missedCount
+        , text <| "Missed " ++ countOutcomes model Psat.Missed
         , brbr
         , text "Duration: "
         , input
