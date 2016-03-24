@@ -5,21 +5,10 @@
 --
 module Psat where
 
-import Task
 import Time
-import Signal
 import String
 import Random
 import Debug exposing (log, watch)
-
-{- TODO: Add logs
-log format:
-    Timestamp SessionId Isi Event
-
-    EventName = Action Action | Outcome Outcome
-
-    EventName = Start | Stop | Right | Missed | Wrong
--}
 
 
 --
@@ -43,7 +32,6 @@ randomChoice list seed =
 type Action pq answer
     = AnswerTimeout SessionId
     | UserAnswers answer
-    | NewPqGiven pq
     | Start
     | ManualStop
     | AutomaticStop SessionId
@@ -182,9 +170,6 @@ updateWhenRunning action model =
 
         AnswerTimeout sessionId ->
             if sessionId /= model.sessionId then model else (setAnswer model Nothing |> addRandomPq)
-
-        NewPqGiven pq ->
-            { model | givenPqs = pq :: model.givenPqs, userHasAnswered = False }
 
         _ ->
             model
