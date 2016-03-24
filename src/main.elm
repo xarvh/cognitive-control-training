@@ -48,12 +48,12 @@ actionsMailbox =
     Signal.mailbox Psat.ManualStop
 
 
-update : Psat.Action Int Int -> (Psat.Model Int Int, List (Psat.Trigger Int Int)) -> (Psat.Model Int Int, List (Psat.Trigger Int Int))
-update action (model, triggers) =
-    Psat.update action model
+update : (Time.Time, Psat.Action Int Int) -> (Psat.Model Int Int, List (Psat.Trigger Int Int)) -> (Psat.Model Int Int, List (Psat.Trigger Int Int))
+update timestampedAction (model, triggers) =
+    Psat.update timestampedAction model
 
 modelAndTriggersSignal =
-    Signal.foldp update (model0, []) actionsMailbox.signal
+    Signal.foldp update (model0, []) (Time.timestamp actionsMailbox.signal)
 
 
 

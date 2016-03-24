@@ -10,7 +10,7 @@ import Time
 import Signal
 import String
 import Random
-import Debug exposing (log)
+import Debug exposing (log, watch)
 
 {- TODO: Add logs
 log format:
@@ -40,15 +40,26 @@ randomChoice list seed =
 --
 -- Model
 --
+type Action pq answer
+    = AnswerTimeout SessionId
+    | UserAnswers answer
+    | NewPqGiven pq
+    | Start
+    | ManualStop
+    | AutomaticStop SessionId
+    | UpdateIsi String
+    | UpdateDuration String
+
+
 type Outcome
     = Right
     | Wrong
     | Missed
 
+
 type alias Isi = Int
 type alias Duration = Int
 type alias SessionId = Int
-
 type alias Key pq answer = (List pq -> Maybe answer)
 
 type alias Model pq answer =
@@ -67,23 +78,14 @@ type alias Model pq answer =
     , sessionId : SessionId
     , duration : Duration
     , seed : Random.Seed
+
+    , log : List (Time.Time, Action pq answer)
     }
 
 -- TODO: initialise seed with timer
 model : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
 model key pqs isi duration =
-    Model key pqs True False [] isi 0 0 0 0 duration (Random.initialSeed 0)
-
-
-type Action pq answer
-    = AnswerTimeout SessionId
-    | UserAnswers answer
-    | NewPqGiven pq
-    | Start
-    | ManualStop
-    | AutomaticStop SessionId
-    | UpdateIsi String
-    | UpdateDuration String
+    Model key pqs True False [] isi 0 0 0 0 duration (Random.initialSeed 0) []
 
 
 --
@@ -221,10 +223,13 @@ updateWhenNotRunning action model =
 --
 -- Main update
 --
-update : Action pq answer -> Model pq answer -> (Model pq answer, List (Trigger pq answer))
-update action model =
+update : (Time.Time, Action pq answer) -> Model pq answer -> (Model pq answer, List (Trigger pq answer))
+update (actionTimestamp, action) model =
     let
+        updateModel =
+            if model.isRunning then updateWhenRunning else updateWhenNotRunning
+
         updatedModel =
-            (if model.isRunning then updateWhenRunning else updateWhenNotRunning) action model
+            (updateModel action { model | log = (actionTimestamp, action) :: model.log })
     in
        (updatedModel, getTriggers updatedModel action)
