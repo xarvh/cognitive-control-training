@@ -12,6 +12,24 @@ import PacedSerialTask
 
 
 --
+-- HELPERS
+--
+-- (I do long for Python's "batteries included")
+--
+groupBy : (a -> b) -> List a -> List (b, List a)
+groupBy selector list =
+    case list of
+        [] -> []
+        a :: _ ->
+            let
+                selected = selector a
+                predicate = ((==) selected) << selector
+                (inside, outside) = List.partition predicate list
+            in
+                (selected, inside) :: groupBy selector outside
+
+
+--
 -- MODEL
 --
 type alias Pq = Int
@@ -48,6 +66,12 @@ model isi duration voice =
     Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] voice 0
 
 model0 = model 3000 5 "english/ossi"
+{-
+state0 factories =
+    ( model 3000 5 "english/ossi"
+    , factories.loadSounds "english/ossi" stuff
+    )
+-}
 
 
 
@@ -58,7 +82,40 @@ log2csv log =
     in
        String.concat <| "Epoc,Action\n" :: List.map map (List.reverse log)
 
+
+
+
+
+
+{-
+        var sessions = [[
+            'Session start',
+            'Session end',
+
+            'Right',
+            'Wrong',
+            'Miss',
+
+            'Accuracy (normalized)',
+
+            'Starting ISI',
+            'Max ISI',
+            'Min ISI',
+            'Trials at minimum ISI'
+        ]];
+-}
+
+
 log2aggregate log = ""
+--     allModels = List.scanl PacedSerialTask.update PacedSerialTask.model0 log
+--
+--     bySessionId = ?.groupBy fst allModels
+--     --> [ (sessionId, [models] ]
+
+
+
+
+
 
 
 
