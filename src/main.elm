@@ -4,7 +4,6 @@ import Time
 
 import Pasat
 import PasatView
--- import Debug exposing (log)
 
 
 --
@@ -48,6 +47,7 @@ actionsMailbox = Signal.mailbox <| Pasat.SelectVoice ""
 taskFactories =
     { playSound = Signal.send playSoundPortMailbox.address
     , triggerAction = Signal.send actionsMailbox.address
+    , download = Signal.send downloadPortMailbox.address
     }
 
 
@@ -62,7 +62,7 @@ modelAndTasksSignal =
     Signal.foldp update (Pasat.model0, task0) (Time.timestamp signal)
 
 main =
-    Signal.map ((PasatView.view downloadPortMailbox.address actionsMailbox.address) << fst) modelAndTasksSignal
+    Signal.map ((PasatView.view actionsMailbox.address) << fst) modelAndTasksSignal
 
 port tasks : Signal (Task.Task () ())
 port tasks =

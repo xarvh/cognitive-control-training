@@ -1,14 +1,14 @@
 module Pasat where
 
 
+import Date
+import Date.Format
 import Signal
+import String
 import Time
 import Task
 
 import PacedSerialTask
-
--- import Debug exposing (log)
-
 
 
 --
@@ -25,6 +25,8 @@ type Action
     = SelectVoice Voice
     | SoundLoaded Progress
     | NestedPstAction PstAction
+    | DownloadLog
+    | DownloadAggregateData
 
 
 sumOfLastTwoDigits : PacedSerialTask.Key Pq Answer
@@ -46,28 +48,53 @@ model isi duration voice =
     Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] voice 0
 
 model0 = model 3000 5 "english/ossi"
--- task0 =
--- state0 = (model0, task0)
+
+
+
+
+log2csv log =
+    let
+        map (timestamp, action) = String.join "," [toString timestamp, toString action] ++ "\n"
+    in
+       String.concat <| "Epoc,Action\n" :: List.map map (List.reverse log)
+
+log2aggregate log = ""
+
+
+
+
+
 
 
 --
 -- UPDATE
 --
-noTask m = (m, Task.succeed ())
-
 type alias TaskFactories =
     { playSound : String -> Task.Task () ()
     , triggerAction : Action -> Task.Task () ()
+    , download : (String, String, String) -> Task.Task () ()
     }
 
 update : TaskFactories -> (Time.Time, Action) -> Model -> (Model, Task.Task () ())
 update factories (timestamp, action) oldModel =
-    case action of
+    let
+        noTask m = (m, Task.succeed ())
+
+        downloadFilename name = Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime timestamp) ++ name ++ ".csv"
+        downloadCsv name transform = (oldModel, factories.download (downloadFilename name, "text/csv", transform oldModel.log))
+
+    in case action of
         SelectVoice voice ->
             noTask oldModel
 
         SoundLoaded loadProgress ->
             noTask { oldModel | loadProgress = loadProgress }
+
+        DownloadLog ->
+            downloadCsv "log" log2csv
+
+        DownloadAggregateData ->
+            downloadCsv "aggregate" log2aggregate
 
         NestedPstAction pstAction ->
             if oldModel.loadProgress < 1

@@ -64,18 +64,18 @@ countOutcomes pstModel outcome =
     toString <| List.length <| List.filter ((==) outcome) pstModel.sessionOutcomes
 
 
-view : Signal.Address (String, String, String) -> Signal.Address Pasat.Action -> Pasat.Model -> Html
-view downloadAddress actionsAddress model =
+view : Signal.Address Pasat.Action -> Pasat.Model -> Html
+view address model =
     div
         [ style [( "text-align", "center")]]
         [ div
             [ style [("display", "inline-block")] ]
-            [ div [ class "number-buttons-container" ] <| makeButtons actionsAddress
+            [ div [ class "number-buttons-container" ] <| makeButtons address
 
             , let
                   (action, label) = if model.pst.isRunning then (PacedSerialTask.ManualStop, "Stop") else (PacedSerialTask.Start, "Start")
               in
-                  button [ onClick actionsAddress (Pasat.NestedPstAction action) ] [ text label ]
+                  button [ onClick address (Pasat.NestedPstAction action) ] [ text label ]
 
             , br [] []
             , br [] []
@@ -91,7 +91,7 @@ view downloadAddress actionsAddress model =
         , input
             [ value <| toString model.pst.duration
             , disabled model.pst.isRunning
-            , on "input" targetValue (\newDuration -> Signal.message actionsAddress <| Pasat.NestedPstAction <| PacedSerialTask.UpdateDuration newDuration)
+            , on "input" targetValue (\newDuration -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateDuration newDuration)
             ]
             []
         , brbr
@@ -99,11 +99,11 @@ view downloadAddress actionsAddress model =
         , input
             [ value <| toString model.pst.isi
             , disabled model.pst.isRunning
-            , on "input" targetValue (\newIsi -> Signal.message actionsAddress <| Pasat.NestedPstAction <| PacedSerialTask.UpdateIsi newIsi)
+            , on "input" targetValue (\newIsi -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateIsi newIsi)
             ]
             []
         , brbr
         , brbr
-        , button [ onClick downloadAddress ("name.csv", "text/csv", "aaaa") ] [ text "Download full session log" ]
-        , button [] [ text "Download aggregate data" ]
+        , button [ onClick address Pasat.DownloadLog ] [ text "Download full sessions log" ]
+        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate data" ]
         ]
