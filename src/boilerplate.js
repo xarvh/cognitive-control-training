@@ -1,2 +1,2 @@
-var elmApp = Elm.fullscreen(Elm.Main)
-registerElmPsatPorts(elmApp);
+var elmApp = Elm.fullscreen(Elm.Main, { loadSoundsProgressPort: 0 })
+registerElmPorts(elmApp);

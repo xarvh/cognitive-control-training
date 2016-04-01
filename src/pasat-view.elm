@@ -1,4 +1,4 @@
-module PsatView where
+module PasatView where
 
 
 import Signal
@@ -6,16 +6,17 @@ import Html exposing (..)
 import Html.Attributes exposing (style, class, value, disabled)
 import Html.Events exposing (onClick, on, targetValue)
 
-import Psat
+import Pasat
+import PacedSerialTask
 
 
 buttonContainerHeight = 280
 buttonRadius = 36
 
-makeButton : Signal.Address (Psat.Action Int Int) -> Int -> Float -> Float -> Html
+makeButton : Signal.Address Pasat.Action -> Int -> Float -> Float -> Html
 makeButton address answer radius angle =
     div
-        [ onClick address <| Psat.UserAnswers answer
+        [ onClick address <| Pasat.NestedPstAction <| PacedSerialTask.UserAnswers answer
         , class "number-button"
         , style
             [ ("top", toString (buttonContainerHeight/2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px")
@@ -26,8 +27,8 @@ makeButton address answer radius angle =
 
 
 -- Lay out the more frequent answers closer to the centre
-makeButtons : Signal.Address (Psat.Action Int Int) -> List Int -> List Html
-makeButtons address answers =
+makeButtons : Signal.Address Pasat.Action -> List Html
+makeButtons address =
     let
         bt = makeButton address
     in
@@ -59,44 +60,50 @@ makeButtons address answers =
 
 brbr = br [] []
 
-countOutcomes model outcome =
-    toString <| List.length <| List.filter ((==) outcome) model.outcomes
+countOutcomes pstModel outcome =
+    toString <| List.length <| List.filter ((==) outcome) pstModel.sessionOutcomes
 
-view : Signal.Address (Psat.Action Int Int) -> Psat.Model Int Int -> Html
+
+view : Signal.Address Pasat.Action -> Pasat.Model -> Html
 view address model =
     div
         [ style [( "text-align", "center")]]
         [ div
             [ style [("display", "inline-block")] ]
-            [ div [ class "number-buttons-container" ] <| makeButtons address [2..18]
-            , button [ onClick address (if model.isRunning then Psat.ManualStop else Psat.Start) ] [ text (if model.isRunning then "Stop" else "Start") ]
+            [ div [ class "number-buttons-container" ] <| makeButtons address
+
+            , let
+                  (action, label) = if model.pst.isRunning then (PacedSerialTask.ManualStop, "Stop") else (PacedSerialTask.Start, "Start")
+              in
+                  button [ onClick address (Pasat.NestedPstAction action) ] [ text label ]
+
             , br [] []
             , br [] []
             ]
         , brbr
-        , text <| "Right " ++ countOutcomes model Psat.Right
+        , text <| "Right " ++ countOutcomes model.pst PacedSerialTask.Right
         , brbr
-        , text <| "Wrong " ++ countOutcomes model Psat.Wrong
+        , text <| "Wrong " ++ countOutcomes model.pst PacedSerialTask.Wrong
         , brbr
-        , text <| "Missed " ++ countOutcomes model Psat.Missed
+        , text <| "Missed " ++ countOutcomes model.pst PacedSerialTask.Missed
         , brbr
         , text "Duration: "
         , input
-            [ value <| toString model.duration
-            , disabled model.isRunning
-            , on "input" targetValue (\newDuration -> Signal.message address <| Psat.UpdateDuration newDuration)
+            [ value <| toString model.pst.duration
+            , disabled model.pst.isRunning
+            , on "input" targetValue (\newDuration -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateDuration newDuration)
             ]
             []
         , brbr
         , text "Inter Stimulus Interval:"
         , input
-            [ value <| toString model.isi
-            , disabled model.isRunning
-            , on "input" targetValue (\newIsi -> Signal.message address <| Psat.UpdateIsi newIsi)
+            [ value <| toString model.pst.isi
+            , disabled model.pst.isRunning
+            , on "input" targetValue (\newIsi -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateIsi newIsi)
             ]
             []
         , brbr
         , brbr
-        , button [] [ text "Download full session log" ]
-        , button [] [ text "Download aggregate data" ]
+        , button [ onClick address Pasat.DownloadLog ] [ text "Download full sessions log" ]
+        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate data" ]
         ]
