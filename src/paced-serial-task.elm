@@ -14,7 +14,7 @@ import Time
 --
 -- HELPERS
 --
--- (This is stuff that should really stay in a libray... -_-
+-- (This is stuff that should really stay in a libray... -_-)
 --
 randomChoice : List a -> Random.Seed -> (Maybe a, Random.Seed)
 randomChoice list seed =
@@ -175,7 +175,7 @@ update factories (actionTimestamp, action) oldModel =
                     , sessionId = oldModel.sessionId + 1
                     , sessionPqs = []
                     , sessionOutcomes = []
-                    , seed = Random.initialSeed <| floor actionTimestamp
+                    , seed = Random.initialSeed <| floor actionTimestamp * 1000
                     } |> addRandomPq
 
                 task = runInParallel
