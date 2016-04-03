@@ -104,6 +104,6 @@ view address model =
             []
         , brbr
         , brbr
-        , button [ onClick address Pasat.DownloadLog ] [ text "Download full sessions log" ]
-        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate data" ]
+        , button [ onClick address Pasat.DownloadLog ] [ text "Download full outcomes log" ]
+        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate outcomes" ]
         ]

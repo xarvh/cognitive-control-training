@@ -46,7 +46,25 @@ type Action
     | DownloadLog
     | DownloadAggregateData
 
+type alias OutcomeLogEntry =
+    { timestamp : Time.Time
+    , sessionId : Int
+    , isi : PacedSerialTask.Isi
+    , outcome : Maybe PacedSerialTask.Outcome
+    }
 
+type alias Model =
+    { pst : PstModel
+    , actionsLog : List (Time.Time, PstAction)
+    , outcomesLog : List OutcomeLogEntry
+    , voice : Voice
+    , loadProgress : Progress
+    }
+
+
+--
+-- Model Init
+--
 sumOfLastTwoDigits : PacedSerialTask.Key Pq Answer
 sumOfLastTwoDigits list = case list of
     a :: b :: _ -> Just (a + b)
@@ -54,18 +72,11 @@ sumOfLastTwoDigits list = case list of
 
 possibleDigits = [1..9]
 
-
-type alias Model =
-    { pst : PstModel
-    , log : List (Time.Time, PstAction)
-    , voice : Voice
-    , loadProgress : Progress
-    }
-
 model isi duration voice =
-    Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] voice 0
+    Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice 0
 
-model0 = model 3000 5 "english/ossi"
+
+model0 = model 1000 5 "english/ossi"
 {-
 state0 factories =
     ( model 3000 5 "english/ossi"
@@ -74,53 +85,77 @@ state0 factories =
 -}
 
 
+table2Csv : List (List String) -> String
+table2Csv table =
+    String.concat <| List.map (\row -> "\"" ++ String.join "\",\"" row ++ "\"\n") table
 
 
+log2csv : List OutcomeLogEntry -> String
 log2csv log =
     let
-        map (timestamp, action) = String.join "," [toString timestamp, toString action] ++ "\n"
+        map entry =
+            [ toString entry.timestamp
+            , toString entry.sessionId
+            , toString entry.isi
+            , case entry.outcome of
+                Nothing -> ""
+                Just o -> toString o
+            ]
     in
-       String.concat <| "Epoc,Action\n" :: List.map map (List.reverse log)
+       table2Csv <| ["Epoc", "sessionId", "Isi", "Outcome"] :: List.map map log
 
 
+log2aggregateCsv : List OutcomeLogEntry -> String
+log2aggregateCsv log =
+    let
+        aggregateSessionModels (sessionId, entries) =
+            let
+                dummyEntry = OutcomeLogEntry 0 0 0 Nothing
+                first = Maybe.withDefault dummyEntry <| List.head entries
+                last = Maybe.withDefault dummyEntry <| List.head <| List.reverse entries
 
+                isies = List.map .isi <| List.filter ((/=) Nothing << .outcome) entries
+                minIsi = Maybe.withDefault 0 <| List.minimum isies
+                maxIsi = Maybe.withDefault 0 <| List.maximum isies
 
+                count o = List.length <| List.filter ((==) (Just o) << .outcome) entries
+                right = count PacedSerialTask.Right
+                wrong = count PacedSerialTask.Wrong
+                missed = count PacedSerialTask.Missed
 
+                formatTimestamp t = Date.Format.format "%Y-%m-%d %H:%M:%S" <| Date.fromTime t
+            in
+               [ toString sessionId
+               , formatTimestamp first.timestamp
+               , formatTimestamp last.timestamp
 
-{-
-        var sessions = [[
-            'Session start',
-            'Session end',
+               , toString <| right
+               , toString <| wrong
+               , toString <| missed
+               , toString <| toFloat right / toFloat (right + wrong + missed)
 
-            'Right',
-            'Wrong',
-            'Miss',
+               , toString <| first.isi
+               , toString <| maxIsi
+               , toString <| minIsi
+               , toString <| List.length <| List.filter ((==) (Debug.log "min" minIsi)) (Debug.log "li" isies)
+               ]
+    in
+        table2Csv <| [
+            "Session id",
+            "Session start",
+            "Session end",
 
-            'Accuracy (normalized)',
+            "Right",
+            "Wrong",
+            "Miss",
 
-            'Starting ISI',
-            'Max ISI',
-            'Min ISI',
-            'Trials at minimum ISI'
-        ]];
--}
+            "Accuracy (normalized)",
 
-
-log2aggregate log = ""
---     allModels = List.scanl PacedSerialTask.update PacedSerialTask.model0 log
---
---     bySessionId = ?.groupBy fst allModels
---     --> [ (sessionId, [models] ]
-
-
-
-
-
-
-
-
-
-
+            "Starting ISI",
+            "Max ISI",
+            "Min ISI",
+            "Trials at minimum ISI"
+        ] :: (List.map aggregateSessionModels <| groupBy .sessionId log)
 
 
 --
@@ -138,7 +173,7 @@ update factories (timestamp, action) oldModel =
         noTask m = (m, Task.succeed ())
 
         downloadFilename name = Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime timestamp) ++ name ++ ".csv"
-        downloadCsv name transform = (oldModel, factories.download (downloadFilename name, "text/csv", transform oldModel.log))
+        downloadCsv name transform = (oldModel, factories.download (downloadFilename name, "text/csv", transform oldModel.outcomesLog))
 
     in case action of
         SelectVoice voice ->
@@ -151,7 +186,7 @@ update factories (timestamp, action) oldModel =
             downloadCsv "log" log2csv
 
         DownloadAggregateData ->
-            downloadCsv "aggregate" log2aggregate
+            downloadCsv "aggregate" log2aggregateCsv
 
         NestedPstAction pstAction ->
             if oldModel.loadProgress < 1
@@ -164,7 +199,18 @@ update factories (timestamp, action) oldModel =
                         }
 
                     timestampedPstAction = (timestamp, pstAction)
-
                     (pstModel, task) = PacedSerialTask.update factories' timestampedPstAction oldModel.pst
+
+                    entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
+                    entries o = [OutcomeLogEntry timestamp pstModel.sessionId oldModel.pst.isi o]
+                    append =
+                        if List.length pstModel.sessionOutcomes > List.length oldModel.pst.sessionOutcomes then entries <| List.head pstModel.sessionOutcomes
+                        else if pstModel.isRunning /= oldModel.pst.isRunning then entries Nothing
+                        else []
                 in
-                    ({ oldModel | pst = pstModel, log = timestampedPstAction :: oldModel.log }, task)
+                    ({ oldModel
+                        | pst = pstModel
+                        , actionsLog = timestampedPstAction :: oldModel.actionsLog
+                        , outcomesLog = List.append oldModel.outcomesLog append
+                    }
+                    , task)
