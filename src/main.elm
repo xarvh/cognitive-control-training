@@ -75,7 +75,7 @@ playSound name = Signal.send playSoundPortMailbox.address <| name
 --
 taskFactories pageName actionConstructor =
     { playSound = Signal.send playSoundPortMailbox.address
-    , loadSounds = \soundList -> Signal.send loadSoundsPortMailbox.address (pageName, soundList)
+    , loadSounds = Signal.send loadSoundsPortMailbox.address << (,) pageName
     , triggerAction = (Signal.send actionsMailbox.address) << actionConstructor
     , download = Signal.send downloadPortMailbox.address
     }
