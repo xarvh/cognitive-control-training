@@ -33,11 +33,6 @@ playSound : String -> Task.Task x ()
 playSound name = Signal.send playSoundPortMailbox.address <| name
 
 
-
-task0 = Signal.send loadSoundsPortMailbox.address <| List.map (\d -> "pasat/english/ossi/" ++ toString d) Pasat.possibleDigits
-
-
-
 --
 -- MAIN
 --
@@ -46,6 +41,7 @@ actionsMailbox = Signal.mailbox <| Pasat.SelectVoice ""
 
 taskFactories =
     { playSound = Signal.send playSoundPortMailbox.address
+    , loadSounds = Signal.send loadSoundsPortMailbox.address
     , triggerAction = Signal.send actionsMailbox.address
     , download = Signal.send downloadPortMailbox.address
     }
@@ -59,7 +55,7 @@ update timestampedAction (model, tasks) =
     Pasat.update taskFactories timestampedAction model
 
 modelAndTasksSignal =
-    Signal.foldp update (Pasat.model0, task0) (Time.timestamp signal)
+    Signal.foldp update (Pasat.state0 taskFactories) (Time.timestamp signal)
 
 main =
     Signal.map ((PasatView.view actionsMailbox.address) << fst) modelAndTasksSignal
