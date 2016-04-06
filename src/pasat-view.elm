@@ -3,7 +3,7 @@ module PasatView where
 
 import Signal
 import Html exposing (..)
-import Html.Attributes exposing (style, class, value, disabled)
+import Html.Attributes exposing (style, class, value, disabled, selected)
 import Html.Events exposing (onClick, on, targetValue)
 
 import Pasat
@@ -12,6 +12,26 @@ import PacedSerialTask
 
 buttonContainerHeight = 280
 buttonRadius = 36
+
+
+-- TODO move this out of here
+voices =
+    [ "english/ossi"
+    , "italiano/fra"
+    ]
+
+
+languageOptions currentVoice =
+    let
+        voiceToOption voice =
+            option
+                [ selected (voice == currentVoice)
+                , value voice
+                ]
+                [ text voice ]
+    in
+       List.map voiceToOption voices
+
 
 makeButton : Signal.Address Pasat.Action -> Int -> Float -> Float -> Html
 makeButton address answer radius angle =
@@ -70,7 +90,13 @@ view address model =
         [ style [( "text-align", "center")]]
         [ div
             [ style [("display", "inline-block")] ]
-            [ div [ class "number-buttons-container" ] <| makeButtons address
+            [ select
+                [ disabled model.pst.isRunning
+                , on "change" targetValue (\newVoice -> Signal.message address <| Pasat.SelectVoice newVoice)
+                ]
+                (languageOptions model.voice)
+
+            , div [ class "number-buttons-container" ] <| makeButtons address
 
             , let
                   (action, label) = if model.pst.isRunning then (PacedSerialTask.ManualStop, "Stop") else (PacedSerialTask.Start, "Start")

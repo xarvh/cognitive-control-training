@@ -76,15 +76,6 @@ model isi duration voice =
     Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice 0
 
 
-model0 = model 1000 5 "english/ossi"
-{-
-state0 factories =
-    ( model 3000 5 "english/ossi"
-    , factories.loadSounds "english/ossi" stuff
-    )
--}
-
-
 table2Csv : List (List String) -> String
 table2Csv table =
     String.concat <| List.map (\row -> "\"" ++ String.join "\",\"" row ++ "\"\n") table
@@ -159,25 +150,47 @@ log2aggregateCsv log =
 
 
 --
--- UPDATE
+-- TASK FACTORIES
 --
+type alias SimpleTask = Task.Task () ()
+
 type alias TaskFactories =
-    { playSound : String -> Task.Task () ()
-    , triggerAction : Action -> Task.Task () ()
-    , download : (String, String, String) -> Task.Task () ()
+    { playSound : String -> SimpleTask
+    , loadSounds : List String -> SimpleTask
+    , triggerAction : Action -> SimpleTask
+    , download : (String, String, String) -> SimpleTask
     }
 
+loadVoiceTask : TaskFactories -> Model -> SimpleTask
+loadVoiceTask factories model =
+    factories.loadSounds <| List.map (\d -> "pasat/" ++ model.voice ++ "/" ++ toString d) possibleDigits
+
+state0 : TaskFactories -> (Model, SimpleTask)
+state0 factories =
+    let
+        model0 = model 3000 5 "english/ossi"
+    in
+        (model0, loadVoiceTask factories model0)
+
+
+--
+-- UPDATE
+--
 update : TaskFactories -> (Time.Time, Action) -> Model -> (Model, Task.Task () ())
 update factories (timestamp, action) oldModel =
     let
         noTask m = (m, Task.succeed ())
+        withinWaiting m = if not oldModel.pst.isRunning then m else noTask oldModel
 
         downloadFilename name = Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime timestamp) ++ name ++ ".csv"
         downloadCsv name transform = (oldModel, factories.download (downloadFilename name, "text/csv", transform oldModel.outcomesLog))
 
     in case action of
-        SelectVoice voice ->
-            noTask oldModel
+        SelectVoice voice -> withinWaiting <|
+            let
+                model = { oldModel | loadProgress = 0, voice = voice }
+            in
+                (model, loadVoiceTask factories model)
 
         SoundLoaded loadProgress ->
             noTask { oldModel | loadProgress = loadProgress }
