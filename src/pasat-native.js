@@ -2,15 +2,17 @@ function registerElmPorts(elmApp) {
 
 
     var sounds = {};
-    elmApp.ports.loadSoundsPort.subscribe(function (soundNames) {
-        loaded = 0;
+    elmApp.ports.loadSoundsPort.subscribe(function (tuple) {
+        var pageName = tuple[0];
+        var soundNames = tuple[1];
+        var loaded = 0;
 
         soundNames.forEach(function (soundName) {
             sounds[soundName] = new Audio('assets/sounds/' + soundName + '.ogg');
             sounds[soundName].preload = 'auto';
             sounds[soundName].oncanplaythrough = function () {
                 loaded += 1;
-                elmApp.ports.loadSoundsProgressPort.send(loaded / soundNames.length);
+                elmApp.ports.loadSoundsProgressPort.send([pageName, loaded / soundNames.length]);
             };
         });
     });
