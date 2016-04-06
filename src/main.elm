@@ -1,7 +1,9 @@
 import Signal
 import Task
 import Time
-import Html
+import Html exposing (div, text)
+import Html.Events exposing (onClick)
+import Html.Attributes exposing (disabled)
 
 import Pasat
 import PasatView
@@ -66,10 +68,6 @@ playSound : String -> Task.Task x ()
 playSound name = Signal.send playSoundPortMailbox.address <| name
 
 
-
-
-
-
 --
 -- FACTORIES
 --
@@ -89,7 +87,7 @@ noTask m = (m, Task.succeed ())
 update (timestamp, action) (oldModel, tasks) =
     case action of
         TransitionTo page ->
-            noTask oldModel
+            noTask { oldModel | page = page }
 
         PasatAction pasatAction ->
             let
@@ -112,13 +110,25 @@ state0 =
 --
 view : Signal.Address Action -> Model -> Html.Html
 view address model =
-    case model.page of
-        About ->
-            Html.text "About"
-        Walls ->
-            Html.text "Walls"
-        Pasat ->
-            PasatView.view (Signal.forwardTo actionsMailbox.address PasatAction) model.pasat
+    let
+        page = case model.page of
+            About ->
+                Html.text "-- About --"
+            Walls ->
+                Html.text "-- Walls --"
+            Pasat ->
+                PasatView.view (Signal.forwardTo actionsMailbox.address PasatAction) model.pasat
+
+        pageSelector page =
+            div [ onClick address <| TransitionTo page, disabled <| model.page == page ] [ text <| toString page ]
+    in
+       div
+           []
+           [ div
+                []
+                <| List.map pageSelector [About, Pasat, Walls]
+           , page
+           ]
 
 
 --
