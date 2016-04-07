@@ -8,10 +8,11 @@ html {
 body {
   font-size: 1rem;
   line-height: 1.6;
-  font-family: "Merriweather", serif
-}
-h1, h2, h3, button, input {
   font-family: "Lato", sans-serif;
+
+  padding: 1rem;
+  max-width: 400px;
+  margin: 0 auto
 }
 h1 {
   font-size: 3.375rem;
@@ -29,6 +30,9 @@ small {
   font-size: 0.667rem;
   max-width: 335px;
 }
+section {
+  margin: 3rem 0;
+}
 button {
   background-color: transparent;
   border: 1px solid #3498db;
@@ -37,28 +41,60 @@ button {
   padding: .5rem 1rem;
   cursor: pointer;
 }
-input {
-  border-width: 1px;
-  border-style: solid;
+input, select {
+  background-color: white;
+  border: 1px solid gray;
   font-size: 1rem;
   padding: .5rem;
+}
+input {
+  width: 3rem;
+  margin-right: .5rem;
 }
 a {
   color: #3498db;
 }
 
-/* Number Task*/
-.number-buttons-container {
-     width: 280px;
-     height: 280px;
-     position: relative;
- }
 
-#number-buttons-container {
-  width: 280px;
-  height: 280px;
-  position: relative;
+/* layout */
+.row {
+  min-height: 2rem;
 }
+.row + .row {
+    margin-top: .5rem;
+}
+.col {
+  display: inline-block;
+  width: 50%;
+}
+
+.col-label {
+  color: gray;
+}
+
+.col-value {
+}
+
+/* Number Task*/
+.pasat-download button {
+  width: 100%;
+}
+
+.pasat-download button + button {
+  margin-top: .5rem;
+}
+
+.pasat-scorecard .col-value {
+  text-align: right;
+  font-family: "Lato", sans-serif;
+}
+
+.number-buttons-container {
+   width: 280px;
+   height: 280px;
+   position: relative;
+}
+
 .number-button {
   -khtml-user-select: none;
   -moz-user-select: none;

@@ -39,8 +39,8 @@ makeButton address answer radius angle =
         [ onClick address <| Pasat.NestedPstAction <| PacedSerialTask.UserAnswers answer
         , class "number-button"
         , style
-            [ ("top", toString (buttonContainerHeight/2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px")
-            , ("left", toString (buttonContainerHeight/2 + 1.1 * radius * buttonRadius * sin (turns angle)) ++ "px")
+            [ ("top", toString (buttonContainerHeight/2 - buttonRadius/2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px")
+            , ("left", toString (buttonContainerHeight/2 - buttonRadius/2 + 1.1 * radius * buttonRadius * sin (turns angle)) ++ "px")
             ]
         ]
         [ text <| toString answer]
@@ -78,58 +78,118 @@ makeButtons address =
         ]
 
 
-brbr = br [] []
-
 countOutcomes pstModel outcome =
     toString <| List.length <| List.filter ((==) outcome) pstModel.sessionOutcomes
 
 
 view : Signal.Address Pasat.Action -> Pasat.Model -> Html
 view address model =
-    div
-        [ style [( "text-align", "center")]]
-        [ div
-            [ style [("display", "inline-block")] ]
-            [ select
-                [ disabled model.pst.isRunning
-                , on "change" targetValue (\newVoice -> Signal.message address <| Pasat.SelectVoice newVoice)
+    let
+        instructions = section
+            [ class "pasat-instruction" ]
+            [ text "
+                When you press Start, you will hear a voice calling out numbers:
+                press the button corresponding to the SUM of the LAST TWO numbers you HEARD.
+                For example, if you hear \"two, four, seven\", you will press button 6 (because 2 + 4 = 6)
+                and then 11 (because 4 + 7 = 11)"
+            ]
+
+        language = div
+            [ class "row" ]
+            [ div
+                [ class "col col-label" ]
+                [ text "Voice language" ]
+            , div
+                [ class "col col-value" ]
+                [ select
+                    [ disabled model.pst.isRunning
+                    , on "change" targetValue (\newVoice -> Signal.message address <| Pasat.SelectVoice newVoice)
+                    ]
+                    (languageOptions model.voice)
                 ]
-                (languageOptions model.voice)
-
-            , div [ class "number-buttons-container" ] <| makeButtons address
-
-            , let
-                  (action, label) = if model.pst.isRunning then (PacedSerialTask.ManualStop, "Stop") else (PacedSerialTask.Start, "Start")
-              in
-                  button [ onClick address (Pasat.NestedPstAction action) ] [ text label ]
-
-            , br [] []
-            , br [] []
             ]
-        , brbr
-        , text <| "Right " ++ countOutcomes model.pst PacedSerialTask.Right
-        , brbr
-        , text <| "Wrong " ++ countOutcomes model.pst PacedSerialTask.Wrong
-        , brbr
-        , text <| "Missed " ++ countOutcomes model.pst PacedSerialTask.Missed
-        , brbr
-        , text "Duration: "
-        , input
-            [ value <| toString model.pst.duration
-            , disabled model.pst.isRunning
-            , on "input" targetValue (\newDuration -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateDuration newDuration)
+
+
+        numericInput : String -> Float -> (String -> PacedSerialTask.Action Int Int) -> String -> Html
+        numericInput label v action units = div
+            [ class "row" ]
+            [ div
+                [ class "col col-label" ]
+                [ text label ]
+            , div
+                [ class "col col-value" ]
+                [ input
+                    [ value <| toString v
+                    , disabled model.pst.isRunning
+                    , on "input" targetValue (\newValue -> Signal.message address <| Pasat.NestedPstAction <| action newValue)
+                    ]
+                    []
+                , text units
+                ]
             ]
-            []
-        , brbr
-        , text "Inter Stimulus Interval:"
-        , input
-            [ value <| toString model.pst.isi
-            , disabled model.pst.isRunning
-            , on "input" targetValue (\newIsi -> Signal.message address <| Pasat.NestedPstAction <| PacedSerialTask.UpdateIsi newIsi)
+
+        duration = numericInput "Duration" (toFloat model.pst.duration) PacedSerialTask.UpdateDuration "minutes"
+        isi = numericInput "Inter Stimulus Interval" (toFloat model.pst.isi / 1000) PacedSerialTask.UpdateIsi "seconds"
+
+        controls = div
+            [ class "pasat-controls"
+            , style [("text-align", "center")]
             ]
-            []
-        , brbr
-        , brbr
-        , button [ onClick address Pasat.DownloadLog ] [ text "Download full outcomes log" ]
-        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate outcomes" ]
-        ]
+            [ div
+                [ style [("display", "inline-block")] ]
+                [ div
+                    [ class "number-buttons-container" ]
+                    (makeButtons address)
+                , let
+                      (action, label) = if model.pst.isRunning then (PacedSerialTask.ManualStop, "Stop") else (PacedSerialTask.Start, "Start")
+                  in
+                      button [ onClick address (Pasat.NestedPstAction action) ] [ text label ]
+                ]
+            ]
+
+
+        scorecard =
+           let
+              score outcome = div
+                 [ class "row" ]
+                 [ div
+                    [ class "col col-label" ]
+                    [ text <| toString outcome ]
+                 , div
+                    [ class "col col-value" ]
+                    [ text <| countOutcomes model.pst outcome ]
+                 ]
+           in
+              div
+                [ class "pasat-scorecard" ]
+                <| List.map score [PacedSerialTask.Right, PacedSerialTask.Wrong, PacedSerialTask.Missed]
+
+
+        download = section
+            [ class "pasat-download" ]
+            [ button [ onClick address Pasat.DownloadLog ] [ text "Download full outcomes log" ]
+            , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate outcomes" ]
+            ]
+
+
+        -- groups
+        options = section
+            [ class "pasat-options" ]
+            [ language, duration, isi ]
+
+        results = section
+            [ class "pasat-results" ]
+            [ if model.pst.sessionId /= 0 then scorecard else none
+            , if model.pst.sessionId /= 0 && not model.pst.isRunning then download else none
+            ]
+
+
+        none = div [] []
+
+    in div []
+       [ controls
+       , results
+       , if model.pst.isRunning then none else instructions
+       , if model.pst.isRunning then none else options
+       ]
+
