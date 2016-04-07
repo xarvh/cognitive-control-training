@@ -14,7 +14,7 @@ type alias SimpleTask = Task.Task () ()
 --
 -- MODEL
 --
-type Page = About | Pasat | Walls
+type Page = About | Pasat | Wells
 
 type alias Model =
     { page : Page
@@ -114,8 +114,8 @@ view address model =
         page = case model.page of
             About ->
                 Html.text "-- About --"
-            Walls ->
-                Html.text "-- Walls --"
+            Wells ->
+                Html.text "-- Wells --"
             Pasat ->
                 PasatView.view (Signal.forwardTo actionsMailbox.address PasatAction) model.pasat
 
@@ -126,7 +126,7 @@ view address model =
            []
            [ div
                 []
-                <| List.map pageSelector [About, Pasat, Walls]
+                <| List.map pageSelector [About, Pasat, Wells]
            , page
            ]
 
