@@ -38,43 +38,12 @@ downloadPortMailbox = Signal.mailbox ("", "", "")
 port downloadPort : Signal.Signal (String, String, String)
 port downloadPort = downloadPortMailbox.signal
 
--- Sound ports
---
--- TODO: slap this into a library?
---
-type alias LoadSoundsRecipient = String
-loadSoundsRecipientPasat = "Pasat"
-
-loadSoundsPortMailbox : Signal.Mailbox (String, List String)
-loadSoundsPortMailbox = Signal.mailbox ("", [])
-port loadSoundsPort : Signal.Signal (String, List String)
-port loadSoundsPort = loadSoundsPortMailbox.signal
-port loadSoundsProgressPort : Signal.Signal (String, Float)
-loadSoundsProgressActionSignal =
-   let
-      map (pageName, progress) =
-          if pageName == loadSoundsRecipientPasat
-          then PasatAction <| Pasat.SoundLoaded progress
-          else TransitionTo About
-   in
-      Signal.map map loadSoundsProgressPort
-
-playSoundPortMailbox : Signal.Mailbox String
-playSoundPortMailbox = Signal.mailbox ""
-port playSoundPort : Signal.Signal String
-port playSoundPort = playSoundPortMailbox.signal
-
-playSound : String -> Task.Task x ()
-playSound name = Signal.send playSoundPortMailbox.address <| name
-
 
 --
 -- FACTORIES
 --
-taskFactories pageName actionConstructor =
-    { playSound = Signal.send playSoundPortMailbox.address
-    , loadSounds = Signal.send loadSoundsPortMailbox.address << (,) pageName
-    , triggerAction = (Signal.send actionsMailbox.address) << actionConstructor
+taskFactories actionConstructor =
+    { triggerAction = (Signal.send actionsMailbox.address) << actionConstructor
     , download = Signal.send downloadPortMailbox.address
     }
 
@@ -91,7 +60,7 @@ update (timestamp, action) (oldModel, tasks) =
 
         PasatAction pasatAction ->
             let
-                factories = taskFactories loadSoundsRecipientPasat PasatAction
+                factories = taskFactories PasatAction
                 (pasatModel, task) = Pasat.update factories (timestamp, pasatAction) oldModel.pasat
             in
                ({ oldModel | pasat = pasatModel }, task)
@@ -99,7 +68,7 @@ update (timestamp, action) (oldModel, tasks) =
 
 state0 =
     let
-        (pasatModel0, pasatTask0) = Pasat.state0 <| taskFactories loadSoundsRecipientPasat PasatAction
+        (pasatModel0, pasatTask0) = Pasat.state0 <| taskFactories PasatAction
         model = Model Pasat pasatModel0
     in
        (model, pasatTask0)
@@ -134,13 +103,11 @@ view address model =
 --
 -- MAIN
 --
-signal = Signal.merge actionsMailbox.signal loadSoundsProgressActionSignal
-
-modelAndTasksSignal = Signal.foldp update state0 (Time.timestamp signal)
+modelAndTasksSignal = Signal.foldp update state0 (Time.timestamp actionsMailbox.signal)
 
 main =
     Signal.map ((view actionsMailbox.address) << fst) modelAndTasksSignal
 
-port tasks : Signal (Task.Task () ())
+port tasks : Signal (Task.Task String ())
 port tasks =
     Signal.map snd modelAndTasksSignal

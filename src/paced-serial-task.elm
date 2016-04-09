@@ -140,11 +140,11 @@ addRandomPq model =
 -- Main update
 --
 type alias TaskFactories pq answer =
-    { emitPq : pq -> Task.Task () ()
-    , triggerAction : Action pq answer -> Task.Task () ()
+    { emitPq : pq -> Task.Task String ()
+    , triggerAction : Action pq answer -> Task.Task String ()
     }
 
-update : TaskFactories pq answer -> (Time.Time, Action pq answer) -> Model pq answer -> (Model pq answer, Task.Task () ())
+update : TaskFactories pq answer -> (Time.Time, Action pq answer) -> Model pq answer -> (Model pq answer, Task.Task String ())
 update factories (actionTimestamp, action) oldModel =
     let
         noTask m = (m, Task.succeed ())
