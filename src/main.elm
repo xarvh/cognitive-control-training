@@ -7,6 +7,7 @@ import Html.Attributes exposing (disabled)
 
 import Pasat
 import PasatView
+import AboutView
 
 type alias SimpleTask = Task.Task () ()
 
@@ -82,7 +83,7 @@ view address model =
     let
         page = case model.page of
             About ->
-                Html.text "-- About --"
+                AboutView.view
             Wells ->
                 Html.text "-- Wells --"
             Pasat ->
