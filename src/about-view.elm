@@ -1,10 +1,12 @@
-module AboutView where
+module AboutView (..) where
 
 import Html exposing (..)
 import Html.Attributes exposing (href)
 
 
-view = div []
+view =
+  div
+    []
     [ h1 [] [ text "Cognitive Tasks" ]
     , p [] [ text "The tasks available from this page are used for cognitive exercises." ]
     , p [] [ text "A relevant bibliography will be hopefully added soon." ]
@@ -14,5 +16,5 @@ view = div []
     , p [] [ text "Please note that no data will be sent to any server, so if you leave a Task's page without downloading the results, the data will be lost." ]
     , p [] [ text "" ]
     , p [] [ text "" ]
---     <a href='tasks/numbers/index.html'>Numbers Task</a>
+      --     <a href='tasks/numbers/index.html'>Numbers Task</a>
     ]
