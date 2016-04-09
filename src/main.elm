@@ -6,9 +6,10 @@ import Time
 import Html exposing (div, text)
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (disabled)
+import AboutView
+import Wells
 import Pasat
 import PasatView
-import AboutView
 
 
 type alias SimpleTask =
@@ -30,11 +31,13 @@ type Page
 type alias Model =
   { page : Page
   , pasat : Pasat.Model
+  , wells : Wells.Model
   }
 
 
 type Action
   = TransitionTo Page
+  | WellsAction Wells.Action
   | PasatAction Pasat.Action
 
 
@@ -90,6 +93,16 @@ update ( timestamp, action ) ( oldModel, tasks ) =
     TransitionTo page ->
       noTask { oldModel | page = page }
 
+    WellsAction wellsAction ->
+      let
+        factories =
+          taskFactories WellsAction
+
+        ( wellsModel, task ) =
+          Wells.update wellsAction oldModel.wells
+      in
+        ( { oldModel | wells = wellsModel }, task )
+
     PasatAction pasatAction ->
       let
         factories =
@@ -107,7 +120,7 @@ state0 =
       Pasat.state0 <| taskFactories PasatAction
 
     model =
-      Model Pasat pasatModel0
+      Model Pasat pasatModel0 Wells.model0
   in
     ( model, pasatTask0 )
 
@@ -127,7 +140,7 @@ view address model =
           AboutView.view
 
         Wells ->
-          Html.text "-- Wells --"
+          Wells.view (Signal.forwardTo actionsMailbox.address WellsAction) model.wells
 
         Pasat ->
           PasatView.view (Signal.forwardTo actionsMailbox.address PasatAction) model.pasat
