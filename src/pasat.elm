@@ -1,8 +1,9 @@
 module Pasat where
 
-
+import Audio
 import Date
 import Date.Format
+import Dict
 import Signal
 import String
 import Time
@@ -41,7 +42,7 @@ type alias Progress = Float
 
 type Action
     = SelectVoice Voice
-    | SoundLoaded Progress
+    | SoundLoaded Pq Audio.Sound
     | NestedPstAction PstAction
     | DownloadLog
     | DownloadAggregateData
@@ -58,7 +59,7 @@ type alias Model =
     , actionsLog : List (Time.Time, PstAction)
     , outcomesLog : List OutcomeLogEntry
     , voice : Voice
-    , loadProgress : Progress
+    , sounds : Dict.Dict Pq Audio.Sound
     }
 
 
@@ -73,7 +74,7 @@ sumOfLastTwoDigits list = case list of
 possibleDigits = [1..9]
 
 model isi duration voice =
-    Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice 0
+    Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice Dict.empty
 
 
 table2Csv : List (List String) -> String
@@ -152,31 +153,45 @@ log2aggregateCsv log =
 --
 -- TASK FACTORIES
 --
-type alias SimpleTask = Task.Task () ()
+type alias SimpleTask = Task.Task String ()
 
 type alias TaskFactories =
-    { playSound : String -> SimpleTask
-    , loadSounds : List String -> SimpleTask
-    , triggerAction : Action -> SimpleTask
+    { triggerAction : Action -> SimpleTask
     , download : (String, String, String) -> SimpleTask
     }
 
-loadVoiceTask : TaskFactories -> Model -> SimpleTask
-loadVoiceTask factories model =
-    factories.loadSounds <| List.map (\d -> "pasat/" ++ model.voice ++ "/" ++ toString d) possibleDigits
+
+loadVoiceTask : TaskFactories -> Model -> (Model, SimpleTask)
+loadVoiceTask factories oldModel =
+    let
+        loadSound digit =
+            (Audio.loadSound <| "assets/sounds/pasat/" ++ oldModel.voice ++ "/" ++ toString digit ++ ".ogg")
+            `Task.andThen`
+            (\sound -> factories.triggerAction <| SoundLoaded digit sound)
+
+        add digit mainTask =
+            Task.spawn (loadSound digit)
+            `Task.andThen`
+            (\_ -> mainTask)
+
+        allTasks = List.foldl add (Task.succeed ()) possibleDigits
+        newModel = { oldModel | sounds = Dict.empty }
+    in
+       (newModel, allTasks)
+
 
 state0 : TaskFactories -> (Model, SimpleTask)
 state0 factories =
     let
         model0 = model 3000 5 "english/ossi"
     in
-        (model0, loadVoiceTask factories model0)
+        loadVoiceTask factories model0
 
 
 --
 -- UPDATE
 --
-update : TaskFactories -> (Time.Time, Action) -> Model -> (Model, Task.Task () ())
+update : TaskFactories -> (Time.Time, Action) -> Model -> (Model, Task.Task String ())
 update factories (timestamp, action) oldModel =
     let
         noTask m = (m, Task.succeed ())
@@ -188,12 +203,12 @@ update factories (timestamp, action) oldModel =
     in case action of
         SelectVoice voice -> withinWaiting <|
             let
-                model = { oldModel | loadProgress = 0, voice = voice }
+                model = { oldModel | voice = voice }
             in
-                (model, loadVoiceTask factories model)
+                loadVoiceTask factories model
 
-        SoundLoaded loadProgress ->
-            noTask { oldModel | loadProgress = loadProgress }
+        SoundLoaded digit sound ->
+            noTask { oldModel | sounds = Dict.insert digit sound oldModel.sounds }
 
         DownloadLog ->
             downloadCsv "log" log2csv
@@ -202,13 +217,16 @@ update factories (timestamp, action) oldModel =
             downloadCsv "aggregate" log2aggregateCsv
 
         NestedPstAction pstAction ->
-            if oldModel.loadProgress < 1
+            if Dict.size oldModel.sounds < List.length possibleDigits
             then noTask oldModel
             else
                 let
                     factories' =
                         { triggerAction = factories.triggerAction << NestedPstAction
-                        , emitPq = \pq -> factories.playSound <| "pasat/" ++ oldModel.voice ++ "/" ++ toString pq
+                        , emitPq = \digit ->
+                            case Dict.get digit oldModel.sounds of
+                                Just sound -> Task.mapError (\_ -> "") (Audio.playSound [] sound)
+                                Nothing -> Task.fail <| "sound " ++ toString digit ++ " not loaded"
                         }
 
                     timestampedPstAction = (timestamp, pstAction)
