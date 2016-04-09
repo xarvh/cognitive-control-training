@@ -96,7 +96,7 @@ view address model =
            []
            [ div
                 []
-                <| List.map pageSelector [About, Pasat, Wells]
+                <| List.map pageSelector [About, Wells, Pasat]
            , page
            ]
 
