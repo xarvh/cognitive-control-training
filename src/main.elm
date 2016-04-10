@@ -96,7 +96,7 @@ update ( timestamp, action ) ( oldModel, tasks ) =
     WellsAction wellsAction ->
       let
         factories =
-          taskFactories WellsAction
+          { triggerAction = (taskFactories WellsAction).triggerAction }
 
         ( wellsModel, task ) =
           Wells.update wellsAction oldModel.wells
@@ -119,10 +119,13 @@ state0 =
     ( pasatModel0, pasatTask0 ) =
       Pasat.state0 <| taskFactories PasatAction
 
+    ( wellsModel0, wellsTask0 ) =
+      Wells.state0 <| { triggerAction = (taskFactories WellsAction).triggerAction }
+
     model =
-      Model Pasat pasatModel0 Wells.model0
+      Model Wells pasatModel0 wellsModel0
   in
-    ( model, pasatTask0 )
+    ( model, wellsTask0 `Task.andThen` \_ -> pasatTask0 )
 
 
 
