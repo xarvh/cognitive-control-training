@@ -1,6 +1,6 @@
 module Wells (..) where
 
-import Audio
+import Audio exposing (defaultPlaybackOptions)
 import Dict
 import Html exposing (..)
 import Html.Events exposing (onClick)
@@ -133,46 +133,27 @@ state0 factories =
 --
 
 
--- TODO: kill ALL sounds but those supposed to loop
-
-controlSound soundsToLoop targetName targetState ( sounds, task ) =
+resetSoundscape : List SoundName -> Model -> ( Model, SimpleTask )
+resetSoundscape soundsToLoop model =
   let
-    isLooping = targetState.isLooping
-    shouldLoop = List.member targetName soundsToLoop
-  in
-    if isLooping == shouldLoop then ( sounds, task )
-    else
+    controlSound soundsToLoop targetName targetState ( sounds, task ) =
       let
-        newTask = (if shouldLoop then Audio.playSound [ Audio.Loop ] else Audio.stopSound) targetState.sound
+        loop = { defaultPlaybackOptions | loop = True }
+        shouldLoop = List.member targetName soundsToLoop
+        newTask = (if shouldLoop && not targetState.isLooping then Audio.playSound loop else Audio.stopSound) targetState.sound
         newState = { targetState | isLooping = shouldLoop }
         newSounds = Dict.insert targetName newState sounds
       in
         ( newSounds, Task.andThen (Task.spawn newTask) (\_ -> task) )
 
-
-startAndStopPlaybackLoops : List SoundName -> Model -> ( Model, SimpleTask )
-startAndStopPlaybackLoops soundsToLoop model =
-  let
+    -- Why Oh Why can't use use Algebraic types as dictionary keys? =(
     travestyAndLampoonery =
       List.map toString soundsToLoop
 
     ( sounds, task ) =
       Dict.foldl (controlSound travestyAndLampoonery) ( Dict.empty, Task.succeed () ) model.sounds
   in
-    ( { model | sounds = sounds }, task )
-
-
-
-stopAllSounds : Model -> ( Model, SimpleTask )
-stopAllSounds model =
-  let
-    task = Task.sequence <| List.map (Task.spawn << Audio.stopSound << .sound) <| Dict.values model.sounds
-    unloop name state = { state | isLooping = False }
-    sounds = Dict.map unloop model.sounds
-  in
-    ({ model | sounds = sounds }, taskDrop task)
-
-
+    ( { model | sounds = sounds, isScriptPlaying = False }, task )
 
 
 --
@@ -195,15 +176,15 @@ update action oldModel =
       let
         update' =
           case tab of
-            TaskMenu -> startAndStopPlaybackLoops oldModel.script.backgroundLoops
-            _ -> stopAllSounds
+            TaskMenu -> resetSoundscape oldModel.script.backgroundLoops
+            _ -> resetSoundscape []
       in
         update' { oldModel | tab = tab }
 
     PlayScript script ->
 --       let
 --           m = { oldModel | script = script, isScriptPlaying = True }
---           (m', task) = startAndStopPlaybackLoops m.script.backgroundLoops
+--           (m', task) = resetSoundscape m.script.backgroundLoops
 --          task: kill all script sounds
 --          task: play script sound andThen trigger soundFinished
       noTask oldModel
@@ -211,7 +192,7 @@ update action oldModel =
     PlaySound soundName ->
       case Dict.get (toString soundName) oldModel.sounds of
         Nothing -> noTask oldModel
-        Just soundState -> (oldModel, taskDrop <| Task.spawn <| Audio.playSound [] soundState.sound)
+        Just soundState -> (oldModel, taskDrop <| Task.spawn <| Audio.playSound defaultPlaybackOptions soundState.sound)
 
     _ ->
       noTask oldModel
