@@ -206,8 +206,8 @@ stopSound = controlSound Ready
 --
 --
 --
-playBackground : TaskFactories -> List SoundName -> Model -> (Model, SimpleTask)
-playBackground factories soundsToLoop model =
+playBackground : TaskFactories -> List SoundName -> (Model, SimpleTask) -> (Model, SimpleTask)
+playBackground factories soundsToLoop initialState =
   let
       controlSound soundName (oldModel, task) =
         let
@@ -216,13 +216,13 @@ playBackground factories soundsToLoop model =
         in
           (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
   in
-    List.foldl controlSound (noTask model) allBackgroundSoundNames
+    List.foldl controlSound initialState allBackgroundSoundNames
 
 
-playScript : TaskFactories -> SoundName -> Model -> (Model, SimpleTask)
-playScript factories scriptSoundName model =
+startStopScript : TaskFactories -> SoundName -> (Model, SimpleTask) -> (Model, SimpleTask)
+startStopScript factories scriptSoundName initialState =
   let
-      isAlreadyPlaying = case Dict.get scriptSoundName model.sounds of
+      isAlreadyPlaying = case Dict.get scriptSoundName (fst initialState).sounds of
         Nothing -> False
         Just state -> state.playback /= Ready
 
@@ -233,7 +233,7 @@ playScript factories scriptSoundName model =
         in
           (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
   in
-    List.foldl controlSound (noTask model) allScriptSoundNames
+    List.foldl controlSound initialState allScriptSoundNames
 
 
 --
@@ -261,22 +261,20 @@ update factories action oldModel =
     -- UI
     ChangeTab tab ->
       let
-        update' =
-          case tab of
-            TaskMenu -> playBackground factories oldModel.script.backgroundLoops
-            _ -> playBackground factories []
-      in
-        update' { oldModel | tab = tab }
+        state = noTask { oldModel | tab = tab }
+      in case tab of
+        TaskMenu ->
+          playBackground factories oldModel.script.backgroundLoops state
+        _ ->
+          playBackground factories [] state |>
+          startStopScript factories ""
 
     StartStopTestSound soundName ->
       startStopSound soundName oldModel
 
     StartStopScript script ->
-      let
-        (model', backgroundTask) = playBackground factories script.backgroundLoops oldModel
-        (model'', scriptTask) = playScript factories script.soundName model'
-      in
-        (model'', dropTaskResult <| Task.sequence [backgroundTask, scriptTask])
+      playBackground factories script.backgroundLoops (noTask oldModel) |>
+      startStopScript factories script.soundName
 
     ScriptComplete script ->
       noTask oldModel
