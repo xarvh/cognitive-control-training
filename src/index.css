@@ -41,6 +41,10 @@ button {
   padding: .5rem 1rem;
   cursor: pointer;
 }
+button:disabled {
+  color: #909090;
+  border-color: #909090;
+}
 input, select {
   background-color: white;
   border: 1px solid gray;

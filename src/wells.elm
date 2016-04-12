@@ -293,6 +293,13 @@ view address model =
               [ text message ]
           ]
 
+    readyButton isLoading =
+      button
+        [ disabled isLoading
+        , onClick address (ChangeTab TaskMenu)
+        ]
+        [ text <| if isLoading then "Loading..." else "Ok, I'm ready!" ]
+
   in case model.tab of
     SoundCheck ->
       div
@@ -305,7 +312,7 @@ view address model =
           , soundTestButton "Seagull" "Seagull (centre-left)"
           ]
 
-        , button [ onClick address (ChangeTab TaskMenu) ] [ text "Ok, I'm ready!" ]
+        , readyButton <| Dict.size model.sounds < List.length allSoundNames
         ]
 
     TaskMenu ->
