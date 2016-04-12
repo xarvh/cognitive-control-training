@@ -43,13 +43,23 @@ button {
   cursor: pointer;
 }
 button:disabled {
-  color: #ff8000;
-  border-color: #ff8000;
+  color: #909090;
+  border-color: #909090;
 }
 .button-stop {
   color: #ff0000;
   border-color: #ff0000;
 }
+
+li .selected {
+  border: 1px solid #ff0000;
+  color: #ff0000;
+}
+li .idle {
+  border: 1px solid #3498db;
+  color: #3498db;
+}
+
 
 input, select {
   background-color: white;

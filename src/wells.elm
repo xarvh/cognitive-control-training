@@ -52,6 +52,7 @@ type Action
   | StartStopTestSound SoundName
   | StartStopScript Script
   | ScriptComplete Script
+  | StopAll
 
 
 type alias Model =
@@ -165,7 +166,7 @@ syncSound factories soundState =
       toSimpleTask <| Audio.stopSound soundState.sound
 
     PlayingLoop ->
-      toSimpleTask <| Audio.playSound { defaultPlaybackOptions | loop = True } soundState.sound
+      toSimpleTask <| Audio.playSound { defaultPlaybackOptions | loop = True, volume = 0.1 } soundState.sound
 
     Playing ->
       (toSimpleTask <| Audio.playSound defaultPlaybackOptions soundState.sound)
@@ -229,7 +230,7 @@ startStopScript factories scriptSoundName initialState =
       controlSound soundName (oldModel, task) =
         let
           shouldPlay = soundName == scriptSoundName && not isAlreadyPlaying
-          (newModel, soundTask) = (if shouldPlay then loopSound else stopSound) factories soundName oldModel
+          (newModel, soundTask) = (if shouldPlay then playSound else stopSound) factories soundName oldModel
         in
           (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
   in
@@ -249,6 +250,10 @@ update factories action oldModel =
         Nothing -> noTask model
         Just soundState -> (if soundState.playback == Ready then playSound else stopSound) factories soundName model
 
+    stopAll state =
+      playBackground factories [] state |>
+      startStopScript factories ""
+
   in case action of
 
     -- Sound control
@@ -263,18 +268,18 @@ update factories action oldModel =
       let
         state = noTask { oldModel | tab = tab }
       in case tab of
-        TaskMenu ->
-          playBackground factories oldModel.script.backgroundLoops state
-        _ ->
-          playBackground factories [] state |>
-          startStopScript factories ""
+        TaskMenu -> playBackground factories oldModel.script.backgroundLoops state
+        _ -> stopAll state
 
     StartStopTestSound soundName ->
       startStopSound soundName oldModel
 
     StartStopScript script ->
-      playBackground factories script.backgroundLoops (noTask oldModel) |>
+      playBackground factories script.backgroundLoops (noTask { oldModel | script = script }) |>
       startStopScript factories script.soundName
+
+    StopAll ->
+      stopAll <| noTask oldModel
 
     ScriptComplete script ->
       noTask oldModel
@@ -287,10 +292,14 @@ update factories action oldModel =
 view : Signal.Address Action -> Model -> Html
 view address model =
   let
+
     scriptView script =
-      li
-        [ onClick address <| StartStopScript script ]
-        [ text script.name ]
+      li []
+        [ div
+          [ onClick address <| StartStopScript script
+          , class (if model.script == script then "selected" else "idle") ]
+          [ text script.name ]
+        ]
 
     soundTestButton soundName description =
       let
@@ -347,4 +356,5 @@ view address model =
         , ul [] <| List.map scriptView scripts
         , scriptNextButton
         , button [ onClick address (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
+        , button [ onClick address StopAll ] [ text "Stop" ]
         ]
