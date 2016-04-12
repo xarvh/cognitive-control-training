@@ -49,8 +49,8 @@ type Action
 
   -- Ui
   | ChangeTab Tab
-  | PlayTestSound SoundName
-  | PlayScript Script
+  | StartStopTestSound SoundName
+  | StartStopScript Script
   | ScriptComplete Script
 
 
@@ -84,6 +84,8 @@ backgroundSounds =
 backgroundSoundsAndTapping =
   "Tapping" :: backgroundSounds
 
+allBackgroundSoundNames =
+  backgroundSoundsAndTapping
 
 script0 =
   Script "Explanation" "IntroScript" backgroundSounds
@@ -101,9 +103,11 @@ scripts =
   , scriptF
   ]
 
+allScriptSoundNames =
+  List.map .soundName scripts
 
 allSoundNames =
-  List.map .soundName scripts ++ backgroundSoundsAndTapping
+   allScriptSoundNames ++ allBackgroundSoundNames
 
 
 --
@@ -118,8 +122,9 @@ dropTaskResult =
 toSimpleTask =
   Task.mapError (\_ -> "")
 
+
 --
--- Sound State helpers
+-- Sound System
 --
 -- These functions help ensure that the model is always up to date regarding the playback state of each sound.
 --
@@ -201,27 +206,50 @@ stopSound = controlSound Ready
 --
 --
 --
-resetSoundscape : TaskFactories -> List SoundName -> Model -> ( Model, SimpleTask )
-resetSoundscape factories soundsToLoop model =
+playBackground : TaskFactories -> List SoundName -> Model -> (Model, SimpleTask)
+playBackground factories soundsToLoop model =
   let
-      fold soundName soundState (oldModel, task) =
+      controlSound soundName (oldModel, task) =
         let
           shouldLoop = List.member soundName soundsToLoop
           (newModel, soundTask) = (if shouldLoop then loopSound else stopSound) factories soundName oldModel
         in
           (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
   in
-    Dict.foldl fold (noTask model) model.sounds
+    List.foldl controlSound (noTask model) allBackgroundSoundNames
+
+
+playScript : TaskFactories -> SoundName -> Model -> (Model, SimpleTask)
+playScript factories scriptSoundName model =
+  let
+      isAlreadyPlaying = case Dict.get scriptSoundName model.sounds of
+        Nothing -> False
+        Just state -> state.playback /= Ready
+
+      controlSound soundName (oldModel, task) =
+        let
+          shouldPlay = soundName == scriptSoundName && not isAlreadyPlaying
+          (newModel, soundTask) = (if shouldPlay then loopSound else stopSound) factories soundName oldModel
+        in
+          (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
+  in
+    List.foldl controlSound (noTask model) allScriptSoundNames
 
 
 --
--- MODEL
+-- UPDATE
 --
 
 
 update : TaskFactories -> Action -> Model -> ( Model, SimpleTask )
 update factories action oldModel =
-  case action of
+  let
+    startStopSound soundName model =
+      case Dict.get soundName model.sounds of
+        Nothing -> noTask model
+        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) factories soundName model
+
+  in case action of
 
     -- Sound control
     SoundLoaded soundName sound ->
@@ -235,18 +263,20 @@ update factories action oldModel =
       let
         update' =
           case tab of
-            TaskMenu -> resetSoundscape factories oldModel.script.backgroundLoops
-            _ -> resetSoundscape factories []
+            TaskMenu -> playBackground factories oldModel.script.backgroundLoops
+            _ -> playBackground factories []
       in
         update' { oldModel | tab = tab }
 
-    PlayTestSound soundName ->
-      case Dict.get soundName oldModel.sounds of
-        Nothing -> noTask oldModel
-        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) factories soundName oldModel
+    StartStopTestSound soundName ->
+      startStopSound soundName oldModel
 
-    PlayScript script ->
-      noTask oldModel
+    StartStopScript script ->
+      let
+        (model', backgroundTask) = playBackground factories script.backgroundLoops oldModel
+        (model'', scriptTask) = playScript factories script.soundName model'
+      in
+        (model'', dropTaskResult <| Task.sequence [backgroundTask, scriptTask])
 
     ScriptComplete script ->
       noTask oldModel
@@ -261,7 +291,7 @@ view address model =
   let
     scriptView script =
       li
-        [ onClick address <| PlayScript script ]
+        [ onClick address <| StartStopScript script ]
         [ text script.name ]
 
     soundTestButton soundName description =
@@ -273,7 +303,7 @@ view address model =
         li []
           [ button
               [ attr
-              , onClick address <| PlayTestSound soundName
+              , onClick address <| StartStopTestSound soundName
               ]
               [ text message ]
           ]
@@ -290,6 +320,12 @@ view address model =
           , onClick address (ChangeTab TaskMenu)
           ]
           [ text message ]
+
+    scriptNextButton =
+      let
+          message = if model.script == script0 then "Start" else "Next"
+      in
+        button [ onClick address <| StartStopScript model.script] [ text message ]
 
   in case model.tab of
     SoundCheck ->
@@ -311,6 +347,6 @@ view address model =
         []
         [ h1 [] [ text "Wells" ]
         , ul [] <| List.map scriptView scripts
-        , button [ ] [ text (if model.script == script0 then "Start" else "Next") ]
+        , scriptNextButton
         , button [ onClick address (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
         ]
