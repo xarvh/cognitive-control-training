@@ -15,22 +15,12 @@ import Task
 --
 
 
+type alias SoundName = String
+
+
 type Tab
   = SoundCheck
   | TaskMenu
-
-
-type alias SoundName = String
---   = Crow
---   | Woodpecker
---   | Seagull
---   | Tapping
---   | IntroScript
---   | VoiceScript
---   | TappingScript
---   | BirdsScript
---   | ShiftScript
---   | ExpandScript
 
 
 type PlaybackState
@@ -265,10 +255,6 @@ update factories action oldModel =
 --
 -- VIEW
 --
-
--- disableWhenPlaying model sound =
---   disabled <| Maybe.withDefault False <| Dict.get sound
-
 
 view : Signal.Address Action -> Model -> Html
 view address model =
