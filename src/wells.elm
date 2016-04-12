@@ -3,7 +3,7 @@ module Wells (..) where
 import Audio exposing (defaultPlaybackOptions)
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (disabled)
+import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
 import Signal
 import String
@@ -59,7 +59,7 @@ type Action
 
   -- Ui
   | ChangeTab Tab
-  | PlaySound SoundName
+  | PlayTestSound SoundName
   | PlayScript Script
   | ScriptComplete Script
 
@@ -250,17 +250,16 @@ update factories action oldModel =
       in
         update' { oldModel | tab = tab }
 
-    PlaySound soundName ->
+    PlayTestSound soundName ->
       case Dict.get soundName oldModel.sounds of
         Nothing -> noTask oldModel
-        Just soundState -> playSound factories soundName oldModel
+        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) factories soundName oldModel
 
     PlayScript script ->
       noTask oldModel
 
     ScriptComplete script ->
       noTask oldModel
-
 
 
 --
@@ -281,24 +280,30 @@ view address model =
 
     soundTestButton soundName description =
       let
-        (dis, message) = case Dict.get soundName model.sounds of
-          Nothing -> (True, "Loading...")
-          Just soundState -> (soundState.playback /= Ready, description)
+        (message, attr) = case Dict.get soundName model.sounds of
+          Nothing -> ("Loading...", disabled True)
+          Just soundState -> (description, class (if soundState.playback == Ready then "button-ready" else "button-stop"))
       in
         li []
           [ button
-              [ disabled dis
-              , onClick address <| PlaySound soundName
+              [ attr
+              , onClick address <| PlayTestSound soundName
               ]
               [ text message ]
           ]
 
-    readyButton isLoading =
-      button
-        [ disabled isLoading
-        , onClick address (ChangeTab TaskMenu)
-        ]
-        [ text <| if isLoading then "Loading..." else "Ok, I'm ready!" ]
+    readyButton =
+      let
+          (message, attr) =
+            if Dict.size model.sounds < List.length allSoundNames
+            then ("Loading...", disabled True)
+            else ("Ok, I'm ready!", class "button-ready")
+      in
+        button
+          [ attr
+          , onClick address (ChangeTab TaskMenu)
+          ]
+          [ text message ]
 
   in case model.tab of
     SoundCheck ->
@@ -312,7 +317,7 @@ view address model =
           , soundTestButton "Seagull" "Seagull (centre-left)"
           ]
 
-        , readyButton <| Dict.size model.sounds < List.length allSoundNames
+        , readyButton
         ]
 
     TaskMenu ->

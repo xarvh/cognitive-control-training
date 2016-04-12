@@ -33,6 +33,7 @@ small {
 section {
   margin: 3rem 0;
 }
+
 button {
   background-color: transparent;
   border: 1px solid #3498db;
@@ -42,9 +43,14 @@ button {
   cursor: pointer;
 }
 button:disabled {
-  color: #909090;
-  border-color: #909090;
+  color: #ff8000;
+  border-color: #ff8000;
 }
+.button-stop {
+  color: #ff0000;
+  border-color: #ff0000;
+}
+
 input, select {
   background-color: white;
   border: 1px solid gray;
