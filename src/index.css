@@ -33,6 +33,7 @@ small {
 section {
   margin: 3rem 0;
 }
+
 button {
   background-color: transparent;
   border: 1px solid #3498db;
@@ -41,6 +42,25 @@ button {
   padding: .5rem 1rem;
   cursor: pointer;
 }
+button:disabled {
+  color: #909090;
+  border-color: #909090;
+}
+.button-stop {
+  color: #ff0000;
+  border-color: #ff0000;
+}
+
+li .selected {
+  border: 1px solid #ff0000;
+  color: #ff0000;
+}
+li .idle {
+  border: 1px solid #3498db;
+  color: #3498db;
+}
+
+
 input, select {
   background-color: white;
   border: 1px solid gray;

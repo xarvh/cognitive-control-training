@@ -305,7 +305,7 @@ update factories ( timestamp, action ) oldModel =
                   \digit ->
                     case Dict.get digit oldModel.sounds of
                       Just sound ->
-                        Task.mapError (\_ -> "") (Audio.playSound [] sound)
+                        Task.mapError (\_ -> "") (Audio.playSound Audio.defaultPlaybackOptions sound)
 
                       Nothing ->
                         Task.fail <| "sound " ++ toString digit ++ " not loaded"
