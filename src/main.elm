@@ -99,7 +99,7 @@ update ( timestamp, action ) ( oldModel, tasks ) =
           { triggerAction = (taskFactories WellsAction).triggerAction }
 
         ( wellsModel, task ) =
-          Wells.update wellsAction oldModel.wells
+          Wells.update factories wellsAction oldModel.wells
       in
         ( { oldModel | wells = wellsModel }, task )
 
