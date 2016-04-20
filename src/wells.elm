@@ -75,10 +75,19 @@ type alias TaskFactories =
 --
 backgroundSounds : List SoundName
 backgroundSounds =
-  [ "Crow"
-  , "Woodpecker"
-  , "Seagull"
-  -- , TODO: add all other sounds
+  [ "background/CarrionCrow"
+  , "background/Chaffinch"
+  , "background/CommonPheasant"
+  , "background/EuropeanGreenfinch"
+  , "background/EuropeanNightjarChurring"
+  , "background/Fieldfare"
+  , "background/GrasshopperWarbler"
+  , "background/GreatSpottedWoodpeckerDrumming"
+  , "background/GreatTit"
+  , "background/HerringGull"
+  , "background/HouseSparrow"
+  , "background/LittleGrebe"
+  , "background/ReedBunting"
   ]
 
 
@@ -89,18 +98,18 @@ allBackgroundSoundNames =
   backgroundSoundsAndTapping
 
 script0 =
-  Script "Explanation" "IntroScript" backgroundSounds
+  Script "Explanation" "scripts/Intro" backgroundSounds
 
 scriptF =
-  Script "Expand" "ExpandScript" backgroundSoundsAndTapping
+  Script "Expand" "scripts/Expand" backgroundSoundsAndTapping
 
 scripts : List Script
 scripts =
   [ script0
-  , Script "Voice" "VoiceScript" backgroundSounds
-  , Script "Tapping" "TappingScript" backgroundSoundsAndTapping
-  , Script "Birds" "BirdsScript" backgroundSoundsAndTapping
-  , Script "Shift" "ShiftScript" backgroundSoundsAndTapping
+  , Script "Voice" "scripts/Voice" backgroundSounds
+  , Script "Tapping" "scripts/Tapping" backgroundSoundsAndTapping
+  , Script "Birds" "scripts/Birds" backgroundSoundsAndTapping
+  , Script "Shift" "scripts/Shift" backgroundSoundsAndTapping
   , scriptF
   ]
 
@@ -341,9 +350,9 @@ view address model =
         [ h1 [] [ text "Sound Check" ]
         , text "Play the sounds and ensure they come from the direction indicated"
         , ul []
-          [ soundTestButton "Crow" "Crow (centre)"
-          , soundTestButton "Woodpecker" "Woodpecker (right)"
-          , soundTestButton "Seagull" "Seagull (centre-left)"
+          [ soundTestButton "background/CarrionCrow" "Crow (centre)"
+          , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
+          , soundTestButton "background/HerringGull" "Seagull (centre-left)"
           ]
 
         , readyButton
