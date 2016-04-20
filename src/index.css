@@ -34,6 +34,17 @@ section {
   margin: 3rem 0;
 }
 
+
+ul.nav {
+  padding: 0;
+}
+.nav li {
+  display: inline-block;
+}
+.nav li + li {
+  margin-left: 5rem;
+}
+
 button {
   background-color: transparent;
   border: 1px solid #3498db;

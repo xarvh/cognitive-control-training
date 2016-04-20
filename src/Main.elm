@@ -1,10 +1,10 @@
 port module Main exposing (..)
 
 import AboutView
-import Html exposing (div, text, span, button)
+import Html exposing (..)
 import Html.App
 import Html.Events exposing (onClick)
-import Html.Attributes exposing (disabled)
+import Html.Attributes exposing (..)
 import Navigation
 import Pasat
 import PasatView
@@ -147,14 +147,15 @@ view model =
         Numbers ->
           Html.App.map PasatAction <| PasatView.view model.pasat
 
-    pageSelector page =
-      div [ onClick <| UserClicksTo page, disabled <| model.page == page ] [ text <| toString page ]
+    pageSelector page = li
+        [ onClick <| UserClicksTo page
+        , disabled <| model.page == page
+        ]
+        [ text <| toString page ]
   in
     div
       []
-      [ div
-          []
-          <| List.map pageSelector pages
+      [ ul [ class "nav" ] <| List.map pageSelector pages
       , page
       ]
 
