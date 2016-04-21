@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.html",
   "scripts": {
-    "build": "elm make src/main.elm src/pasat.elm src/paced-serial-task.elm src/pasat-view.elm src/about-view.elm src/wells.elm --output build/app.js",
+    "build": "elm make src/Main.elm --output build/app.js",
     "test": "lab --verbose tasks/**/*Test.js"
   },
   "repository": {
