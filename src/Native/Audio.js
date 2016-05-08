@@ -3,6 +3,9 @@ var _user$project$Native_Audio = function() {
 
   var Task = _elm_lang$core$Native_Scheduler;
 
+  function _isPlaying(audio) {
+    return !audio.paused && !audio.ended && audio.currentTime > 0;
+  }
 
   function loadSound(source) {
     return Task.nativeBinding(function (callback) {
@@ -62,14 +65,14 @@ var _user$project$Native_Audio = function() {
       };
 
       audio.addEventListener('ended', onended, false);
-      audio.play();
+      if(!_isPlaying(audio)) audio.play();
     });
   }
 
 
   function stopSound(sound) {
     return Task.nativeBinding(function (callback) {
-      sound.audio.pause();
+      if(_isPlaying(sound.audio)) sound.audio.pause();
       callback(Task.succeed());
     });
   }

@@ -1,14 +1,20 @@
 module Wells exposing (..)
 
-import Audio exposing (defaultPlaybackOptions)
 import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
 import Process
 import Platform.Cmd
+import Set
+import Sound
 import String
 import Task
+
+
+(&>) = Maybe.andThen
+-- https://github.com/elm-lang/elm-compiler/issues/1394
+-- infixl 9 &>
 
 
 --
@@ -20,362 +26,228 @@ type alias SoundName = String
 
 
 type Tab
-  = SoundCheck
-  | TaskMenu
-
-
-type PlaybackState
-  = Ready
-  | Playing
-  | PlayingLoop
-
-
-type alias SoundState =
-  { sound : Audio.Sound
-  , playback : PlaybackState
-  }
+    = SoundCheck
+    | TaskMenu
 
 
 type alias Script =
-  { name : String
-  , soundName : SoundName
-  , backgroundLoops : List SoundName
-  }
+    { name : String
+    , soundName : SoundName
+    , backgroundLoops : List SoundName
+    }
 
 
-type Action
-  = Noop
-  | Error String
+type Message
+    = NestedSoundControl SoundName Sound.Message
 
-  -- Playback
-  | SoundLoaded SoundName Audio.Sound
-  | PlaybackComplete Audio.Sound
+    | UserPlaysTestSound SoundName
 
-  -- Ui
-  | ChangeTab Tab
-  | StartStopTestSound SoundName
-  | StartStopScript Script
-  | ScriptComplete Script
-  | StopAll
+    | UserChangesTab Tab -- Also used to stop all playback
+    | UserPlaysCurrentScript
+    | UserSkipsCurrentScript
 
 
 type alias Model =
-  { sounds : Dict.Dict String SoundState
-  , tab : Tab
-  , script : Script
-  }
+    { sounds : Dict.Dict String Sound.Model
+    , tab : Tab
+    , currentScript : Maybe Script
+    }
+
 
 
 --
--- Scripts
+-- SCRIPTS
 --
-backgroundSounds : List SoundName
-backgroundSounds =
-  [ "background/CarrionCrow"
-  , "background/Chaffinch"
-  , "background/CommonPheasant"
-  , "background/EuropeanGreenfinch"
-  , "background/EuropeanNightjarChurring"
-  , "background/Fieldfare"
-  , "background/GrasshopperWarbler"
-  , "background/GreatSpottedWoodpeckerDrumming"
-  , "background/GreatTit"
-  , "background/HerringGull"
-  , "background/HouseSparrow"
-  , "background/LittleGrebe"
-  , "background/ReedBunting"
-  ]
-
-
-backgroundSoundsAndTapping =
-  "background/Tapping" :: backgroundSounds
-
-allBackgroundSoundNames =
-  backgroundSoundsAndTapping
-
-script0 =
-  Script "Explanation" "scripts/Intro" backgroundSounds
-
-scriptF =
-  Script "Expand" "scripts/Expand" backgroundSoundsAndTapping
-
 scripts : List Script
 scripts =
-  [ script0
-  , Script "Voice" "scripts/Voice" backgroundSounds
-  , Script "Tapping" "scripts/Tapping" backgroundSoundsAndTapping
-  , Script "Birds" "scripts/Birds" backgroundSoundsAndTapping
-  , Script "Shift" "scripts/Shift" backgroundSoundsAndTapping
-  , scriptF
-  ]
+    let
+        base =
+          [ "background/CarrionCrow"
+          , "background/Chaffinch"
+          , "background/CommonPheasant"
+          , "background/EuropeanGreenfinch"
+          , "background/EuropeanNightjarChurring"
+          , "background/Fieldfare"
+          , "background/GrasshopperWarbler"
+          , "background/GreatSpottedWoodpeckerDrumming"
+          , "background/GreatTit"
+          , "background/HerringGull"
+          , "background/HouseSparrow"
+          , "background/LittleGrebe"
+          , "background/ReedBunting"
+          ]
 
-allScriptSoundNames =
-  List.map .soundName scripts
+        basePlusTapping =
+          "background/Tapping" :: base
 
-allSoundNames =
-   allScriptSoundNames ++ allBackgroundSoundNames
-
-
---
--- Helpers
---
-noCmd model =
-  ( model, Platform.Cmd.none )
-
-
-toActionCommand : Task.Task String success -> (success -> Action) -> Cmd Action
-toActionCommand task actionConstructor =
-  Task.perform Error actionConstructor task
-
-
-toSilentCommand task =
-  toActionCommand task (\_ -> Noop)
-
+    in
+        [ Script "Explanation" "scripts/Intro" base
+        , Script "Voice" "scripts/Voice" base
+        , Script "Tapping" "scripts/Tapping" basePlusTapping
+        , Script "Birds" "scripts/Birds" basePlusTapping
+        , Script "Shift" "scripts/Shift" basePlusTapping
+        , Script "Expand" "scripts/Expand" basePlusTapping
+        ]
 
 
 --
--- Sound System
+-- INIT
 --
--- These functions help ensure that the model is always up to date regarding the playback state of each sound.
---
-state0 : ( Model, Cmd Action )
-state0 =
-  let
-    uri soundName =
-      "assets/sounds/wells/" ++ soundName ++ ".ogg"
+init : ( Model, Cmd Message )
+init =
+    let
+        allBgSoundNames =
+            Set.toList <| Set.fromList <| List.concat <| List.map .backgroundLoops scripts
 
-    loadSound soundName =
-      toActionCommand (Audio.loadSound <| uri soundName) (SoundLoaded soundName)
+        allScriptSoundNames =
+            List.map .soundName scripts
 
-    cmd0 =
-      Platform.Cmd.batch <| List.map loadSound allSoundNames
+        allSoundNames =
+            allScriptSoundNames ++ allBgSoundNames
 
-    model0 =
-      Model Dict.empty SoundCheck script0
+        uri soundName =
+            "assets/sounds/wells/" ++ soundName ++ ".ogg"
+
+        ( sounds, cmds ) =
+            List.unzip <| List.map (Sound.init << uri) allSoundNames
+
+        soundsByName =
+            Dict.fromList <| List.map2 (,) allSoundNames sounds
+
+        model =
+            Model soundsByName SoundCheck (List.head scripts)
+
+        cmd =
+            Cmd.batch <| List.map (\( name, cmd ) -> Cmd.map (NestedSoundControl name) cmd) <| List.map2 (,) allSoundNames cmds
   in
-    ( model0, cmd0 )
+        ( model, cmd )
 
 
-actionSoundLoaded : SoundName -> Audio.Sound -> Model -> Model
-actionSoundLoaded soundName sound model =
-  let
-      key = soundName
-      value = SoundState sound Ready
-      sounds = Dict.insert key value model.sounds
-  in
-     { model | sounds = sounds }
+
+--
+-- Update Helpers
+--
+soundsPlay : Maybe SoundName -> List SoundName -> Model -> ( Model, Cmd Message )
+soundsPlay scriptSound backgroundSounds oldModel =
+    let
+        switchSound (soundName, oldSound) =
+            let
+                mode =
+                    if List.member soundName backgroundSounds then Sound.Loop
+                    else if scriptSound == Just soundName then Sound.Play
+                    else Sound.Idle
+
+                ( newSound, cmd ) =
+                    Sound.update (Sound.SwitchTo mode) oldSound
+            in
+                ( ( soundName, newSound ), ( soundName, cmd ) )
+
+        ( namesAndSounds, namesAndCmds ) = List.unzip <| List.map switchSound <| Dict.toList oldModel.sounds
+
+        sounds = Dict.fromList namesAndSounds
+
+        cmds = List.map (\( name, cmd ) -> Cmd.map (NestedSoundControl name) cmd) namesAndCmds
+    in
+        ( { oldModel | sounds = sounds }, Cmd.batch cmds )
 
 
-syncSound : SoundState -> Cmd Action
-syncSound soundState =
-  case soundState.playback of
-    Ready ->
-      toSilentCommand <| Task.mapError (\_ -> "") <| Audio.stopSound soundState.sound
 
-    PlayingLoop ->
-      toSilentCommand <| Audio.playSound { defaultPlaybackOptions | loop = True, volume = 0.1 } soundState.sound
+update : Message -> Model -> ( Model, Cmd Message )
+update message oldModel =
+  case message of
 
-    Playing ->
-      toActionCommand (Audio.playSound defaultPlaybackOptions soundState.sound) (\_ -> PlaybackComplete soundState.sound)
-
-
-actionPlaybackComplete : Audio.Sound -> Model -> Model
-actionPlaybackComplete sound model =
-  let
-      readySound soundName soundState = if soundState.sound == sound then { soundState | playback = Ready } else soundState
-      sounds = Dict.map readySound model.sounds
-  in
-     { model | sounds = sounds }
+    NestedSoundControl soundName nestedMessage ->
+        -- TODO intercept PlaybackComplete
+        case Dict.get soundName oldModel.sounds of
+            Nothing -> Debug.crash <| "invalid sound " ++ soundName
+            Just oldSound ->
+                let
+                    ( newSound, soundCmd ) = Sound.update nestedMessage oldSound
+                    newModel = { oldModel | sounds = Dict.insert soundName newSound oldModel.sounds }
+                in
+                    ( newModel, Cmd.map (NestedSoundControl soundName) soundCmd )
 
 
-controlSound : PlaybackState -> SoundName -> Model -> (Model, Cmd Action)
-controlSound playback soundName model =
-  case Dict.get soundName model.sounds of
-    Nothing -> noCmd model
-    Just soundState ->
-      if soundState.playback == playback
-      then noCmd model
-      else
+    UserPlaysTestSound soundName ->
+        soundsPlay (Just soundName) [] oldModel
+
+
+    UserChangesTab tab ->
         let
-            state = { soundState | playback = playback }
-            sounds = Dict.insert soundName state model.sounds
-            cmd = syncSound state
+            background = case tab of
+                SoundCheck -> []
+                TaskMenu -> Maybe.withDefault [] (oldModel.currentScript &> (Just << .backgroundLoops))
         in
-           ({ model | sounds = sounds }, cmd)
+            soundsPlay Nothing background { oldModel | tab = tab }
 
 
-playSound = controlSound Playing
-loopSound = controlSound PlayingLoop
-stopSound = controlSound Ready
+    UserPlaysCurrentScript ->
+        Maybe.withDefault (oldModel, Cmd.none) <|
+        oldModel.currentScript &> \currentScript ->
+        Just <| soundsPlay (Just currentScript.soundName) currentScript.backgroundLoops oldModel
 
 
---
---
---
-playBackground : List SoundName -> (Model, Cmd Action) -> (Model, Cmd Action)
-playBackground soundsToLoop initialState =
-  let
-      controlSound soundName (oldModel, oldCmd) =
-        let
-          shouldLoop = List.member soundName soundsToLoop
-          (newModel, soundCmd) = (if shouldLoop then loopSound else stopSound) soundName oldModel
-        in
-          (newModel, Platform.Cmd.batch [oldCmd, soundCmd])
-  in
-    List.foldl controlSound initialState allBackgroundSoundNames
+    UserSkipsCurrentScript ->
+        ( oldModel, Cmd.none )
+        -- pick next script
+--         soundsPlay Nothing currentScript.backgroundLoops oldModel
 
 
-startStopScript : SoundName -> (Model, Cmd Action) -> (Model, Cmd Action)
-startStopScript scriptSoundName initialState =
-  let
-      isAlreadyPlaying = case Dict.get scriptSoundName (fst initialState).sounds of
-        Nothing -> False
-        Just state -> state.playback /= Ready
-
-      controlSound soundName (oldModel, oldCmd) =
-        let
-          shouldPlay = soundName == scriptSoundName && not isAlreadyPlaying
-          (newModel, soundCmd) = (if shouldPlay then playSound else stopSound) soundName oldModel
-        in
-          (newModel, Platform.Cmd.batch [oldCmd, soundCmd])
-  in
-    List.foldl controlSound initialState allScriptSoundNames
-
-
---
--- UPDATE
---
-
-
-update : Action -> Model -> ( Model, Cmd Action )
-update action oldModel =
-  let
-    startStopSound soundName model =
-      case Dict.get soundName model.sounds of
-        Nothing -> noCmd model
-        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) soundName model
-
-    stopAll state =
-      playBackground [] state |>
-      startStopScript ""
-
-  in case action of
-    Noop ->
-      noCmd oldModel
-
-    -- TODO: show error in page
-    Error message ->
-      let
-          e = Debug.log "wells error" message
-      in
-         noCmd oldModel
-
-
-    -- Sound control
-    SoundLoaded soundName sound ->
-      noCmd <| actionSoundLoaded soundName sound oldModel
-
-    PlaybackComplete sound ->
-      noCmd <| actionPlaybackComplete sound oldModel
-
-    -- UI
-    ChangeTab tab ->
-      let
-        state = noCmd { oldModel | tab = tab }
-      in case tab of
-        TaskMenu -> playBackground oldModel.script.backgroundLoops state
-        _ -> stopAll state
-
-    StartStopTestSound soundName ->
-      startStopSound soundName oldModel
-
-    StartStopScript script ->
-      playBackground script.backgroundLoops (noCmd { oldModel | script = script }) |>
-      startStopScript script.soundName
-
-    StopAll ->
-      stopAll <| noCmd oldModel
-
-    ScriptComplete script ->
-      noCmd oldModel
 
 
 --
 -- VIEW
 --
+viewTaskMenu model =
+    let
+        isPlaying = List.any (\s -> s.status == Sound.Play) <| Dict.values model.sounds
 
-view : Model -> Html Action
+    in case model.currentScript of
+        Nothing ->
+            text "All done, proceed to PASAT"
+
+        Just script ->
+            div
+                []
+                -- TODO is playing or not?
+                [ text <| (if isPlaying then "Playing: " else "Up Next: ") ++ script.name
+                , if isPlaying
+                  then button [ onClick (UserChangesTab SoundCheck) ] [ text "Stop" ]
+                  else button [ onClick UserPlaysCurrentScript ] [ text "Play" ]
+                , button [ onClick <| UserSkipsCurrentScript ] [ text "Skip" ]
+                ]
+
+
+soundTestButton soundName description =
+  li []
+    [ button [ onClick <| UserPlaysTestSound soundName ] [ text description ] ]
+
+
+viewSoundCheck model =
+  div
+    []
+    [ h1 [] [ text "Sound Check" ]
+
+    , text "Play the sounds and ensure they come from the direction indicated"
+
+    , ul []
+      [ soundTestButton "background/CarrionCrow" "Crow (centre)"
+      , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
+      , soundTestButton "background/HerringGull" "Seagull (centre-left)"
+      ]
+
+    , button
+      [ class "button-ready"
+      , onClick (UserChangesTab TaskMenu)
+      ]
+      [ text "Start" ]
+    ]
+
+
+view : Model -> Html Message
 view model =
-  let
-
-    scriptView script =
-      let
-          isCurrent = model.script == script
-
-          label = script.name ++ (if isCurrent then " Play/Stop" else "")
-      in
-        li []
-          [ span
-            [ onClick <| StartStopScript script
-            , class (if isCurrent then "selected" else "idle")
-            ]
-            [ text label ]
-          ]
-
-    soundTestButton soundName description =
-      let
-        (message, attr) = case Dict.get soundName model.sounds of
-          Nothing -> ("Loading...", disabled True)
-          Just soundState -> (description, class (if soundState.playback == Ready then "button-ready" else "button-stop"))
-      in
-        li []
-          [ button
-              [ attr
-              , onClick <| StartStopTestSound soundName
-              ]
-              [ text message ]
-          ]
-
-    readyButton =
-      let
-          (message, attr) =
-            if Dict.size model.sounds < List.length allSoundNames
-            then ("Loading...", disabled True)
-            else ("Ok, I'm ready!", class "button-ready")
-      in
-        button
-          [ attr
-          , onClick (ChangeTab TaskMenu)
-          ]
-          [ text message ]
-
-    scriptNextButton =
-      let
-          message = if model.script == script0 then "Start" else "Next"
-      in
-        button [ onClick <| StartStopScript model.script] [ text message ]
-
-  in case model.tab of
-    SoundCheck ->
-      div
-        []
-        [ h1 [] [ text "Sound Check" ]
-        , text "Play the sounds and ensure they come from the direction indicated"
-        , ul []
-          [ soundTestButton "background/CarrionCrow" "Crow (centre)"
-          , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
-          , soundTestButton "background/HerringGull" "Seagull (centre-left)"
-          ]
-
-        , readyButton
-        ]
-
-    TaskMenu ->
-      div
-        []
-        [ h1 [] [ text "Wells" ]
-        , ul [] <| List.map scriptView scripts
-        , scriptNextButton
-        , button [ onClick (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
-        , button [ onClick StopAll ] [ text "Stop" ]
-        ]
+  if Dict.values model.sounds |> List.map .sound |> List.any ((==) Nothing)
+  then text "Loading..."
+  else case model.tab of
+    SoundCheck -> viewSoundCheck model
+    TaskMenu -> viewTaskMenu model
