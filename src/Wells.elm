@@ -62,7 +62,7 @@ type Action
 type alias Model =
   { sounds : Dict.Dict String SoundState
   , tab : Tab
-  , script : Script
+  , currentScript : Maybe Script
   }
 
 
@@ -151,7 +151,7 @@ state0 =
       Platform.Cmd.batch <| List.map loadSound allSoundNames
 
     model0 =
-      Model Dict.empty SoundCheck script0
+      Model Dict.empty SoundCheck (Just script0)
   in
     ( model0, cmd0 )
 
@@ -283,15 +283,19 @@ update action oldModel =
       let
         state = noCmd { oldModel | tab = tab }
       in case tab of
-        TaskMenu -> playBackground oldModel.script.backgroundLoops state
-        _ -> stopAll state
+        TaskMenu ->
+          case oldModel.currentScript of
+            Just script -> playBackground factories script.backgroundLoops state
+            Nothing -> stopAll state
+        _ ->
+          stopAll state
 
     StartStopTestSound soundName ->
       startStopSound soundName oldModel
 
     StartStopScript script ->
-      playBackground script.backgroundLoops (noCmd { oldModel | script = script }) |>
-      startStopScript script.soundName
+      playBackground factories script.backgroundLoops (noTask { oldModel | currentScript = Just script }) |>
+      startStopScript factories script.soundName
 
     StopAll ->
       stopAll <| noCmd oldModel
@@ -303,25 +307,33 @@ update action oldModel =
 --
 -- VIEW
 --
+viewTaskMenu model =
+  case model.currentScript of
+    Nothing ->
+      text "All done, proceed to PASAT"
 
-view : Model -> Html Action
-view model =
+    Just script ->
+      case Dict.get script.soundName model.sounds of
+        Nothing -> text "Still loading..."
+        Just soundState ->
+          let
+              isPlaying = soundState.playback == Playing
+          in
+              div
+                []
+                [ text <| (if isPlaying then "Playing: " else "Up Next: ") ++ script.name
+                , button
+                  [ onClick <| StartStopScript script ]
+                  [ text <| if isPlaying then "Stop" else "Play" ]
+                , button
+                  [ onClick <| ScriptComplete script ]
+                  [ text "Skip" ]
+                ]
+
+
+
+viewSoundCheck model =
   let
-
-    scriptView script =
-      let
-          isCurrent = model.script == script
-
-          label = script.name ++ (if isCurrent then " Play/Stop" else "")
-      in
-        li []
-          [ span
-            [ onClick <| StartStopScript script
-            , class (if isCurrent then "selected" else "idle")
-            ]
-            [ text label ]
-          ]
-
     soundTestButton soundName description =
       let
         (message, attr) = case Dict.get soundName model.sounds of
@@ -348,34 +360,23 @@ view model =
           , onClick (ChangeTab TaskMenu)
           ]
           [ text message ]
-
-    scriptNextButton =
-      let
-          message = if model.script == script0 then "Start" else "Next"
-      in
-        button [ onClick <| StartStopScript model.script] [ text message ]
-
-  in case model.tab of
-    SoundCheck ->
-      div
-        []
-        [ h1 [] [ text "Sound Check" ]
-        , text "Play the sounds and ensure they come from the direction indicated"
-        , ul []
-          [ soundTestButton "background/CarrionCrow" "Crow (centre)"
-          , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
-          , soundTestButton "background/HerringGull" "Seagull (centre-left)"
-          ]
-
-        , readyButton
+  in
+    div
+      []
+      [ h1 [] [ text "Sound Check" ]
+      , text "Play the sounds and ensure they come from the direction indicated"
+      , ul []
+        [ soundTestButton "background/CarrionCrow" "Crow (centre)"
+        , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
+        , soundTestButton "background/HerringGull" "Seagull (centre-left)"
         ]
 
-    TaskMenu ->
-      div
-        []
-        [ h1 [] [ text "Wells" ]
-        , ul [] <| List.map scriptView scripts
-        , scriptNextButton
-        , button [ onClick (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
-        , button [ onClick StopAll ] [ text "Stop" ]
-        ]
+      , readyButton
+      ]
+
+
+view : Model -> Html Action
+view model =
+  case model.tab of
+    SoundCheck -> viewSoundCheck model
+    TaskMenu -> viewTaskMenu model
