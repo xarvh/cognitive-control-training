@@ -92,7 +92,7 @@ backgroundSounds =
 
 
 backgroundSoundsAndTapping =
-  "Tapping" :: backgroundSounds
+  "background/Tapping" :: backgroundSounds
 
 allBackgroundSoundNames =
   backgroundSoundsAndTapping
@@ -303,12 +303,18 @@ view address model =
   let
 
     scriptView script =
-      li []
-        [ div
-          [ onClick address <| StartStopScript script
-          , class (if model.script == script then "selected" else "idle") ]
-          [ text script.name ]
-        ]
+      let
+          isCurrent = model.script == script
+
+          label = script.name ++ (if isCurrent then " Play/Stop" else "")
+      in
+        li []
+          [ span
+            [ onClick address <| StartStopScript script
+            , class (if isCurrent then "selected" else "idle")
+            ]
+            [ text label ]
+          ]
 
     soundTestButton soundName description =
       let
