@@ -1,4 +1,4 @@
-module AboutView (..) where
+module AboutView exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (href)

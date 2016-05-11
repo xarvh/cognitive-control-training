@@ -1,4 +1,4 @@
-module Audio (..) where
+module Audio exposing (..)
 
 {-|
 

@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.html",
   "scripts": {
-    "build": "elm make src/Main.elm --output build/app.js",
-    "test": "lab --verbose tasks/**/*Test.js"
+    "build": "elm make src/Main.elm --output build/app.js"
   },
   "repository": {
     "type": "git",

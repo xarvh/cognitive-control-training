@@ -1,9 +1,9 @@
-module PasatView (..) where
+module PasatView exposing (..)
 
-import Signal
 import Html exposing (..)
 import Html.Attributes exposing (style, class, value, disabled, selected)
 import Html.Events exposing (onClick, on, targetValue)
+import Json.Decode
 import Pasat
 import PacedSerialTask
 
@@ -38,10 +38,10 @@ languageOptions currentVoice =
     List.map voiceToOption voices
 
 
-makeButton : Signal.Address Pasat.Action -> Int -> Float -> Float -> Html
-makeButton address answer radius angle =
+makeButton : Int -> Float -> Float -> Html Pasat.Action
+makeButton answer radius angle =
   div
-    [ onClick address <| Pasat.NestedPstAction <| PacedSerialTask.UserAnswers answer
+    [ onClick <| Pasat.NestedPstAction <| PacedSerialTask.UserAnswers answer
     , class "number-button"
     , style
         [ ( "top", toString (buttonContainerHeight / 2 - buttonRadius / 2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px" )
@@ -55,11 +55,10 @@ makeButton address answer radius angle =
 -- Lay out the more frequent answers closer to the centre
 
 
-makeButtons : Signal.Address Pasat.Action -> List Html
-makeButtons address =
+makeButtons : List (Html Pasat.Action)
+makeButtons =
   let
-    bt =
-      makeButton address
+    bt = makeButton
   in
     -- centre
     [ bt 10 0 0
@@ -88,8 +87,8 @@ countOutcomes pstModel outcome =
   toString <| List.length <| List.filter ((==) outcome) pstModel.sessionOutcomes
 
 
-view : Signal.Address Pasat.Action -> Pasat.Model -> Html
-view address model =
+view : Pasat.Model -> Html Pasat.Action
+view model =
   let
     instructions =
       section
@@ -107,13 +106,13 @@ view address model =
             [ class "col col-value" ]
             [ select
                 [ disabled model.pst.isRunning
-                , on "change" targetValue (\newVoice -> Signal.message address <| Pasat.SelectVoice newVoice)
+                , on "change" (Json.Decode.map Pasat.SelectVoice targetValue)
                 ]
                 (languageOptions model.voice)
             ]
         ]
 
-    numericInput : String -> Float -> (String -> PacedSerialTask.Action Int Int) -> String -> Html
+    numericInput : String -> Float -> (String -> PacedSerialTask.Action Int Int) -> String -> Html Pasat.Action
     numericInput label v action units =
       div
         [ class "row" ]
@@ -125,7 +124,7 @@ view address model =
             [ input
                 [ value <| toString v
                 , disabled model.pst.isRunning
-                , on "input" targetValue (\newValue -> Signal.message address <| Pasat.NestedPstAction <| action newValue)
+                , on "input" (Json.Decode.map (Pasat.NestedPstAction << action) targetValue)
                 ]
                 []
             , text units
@@ -147,7 +146,7 @@ view address model =
             [ style [ ( "display", "inline-block" ) ] ]
             [ div
                 [ class "number-buttons-container" ]
-                (makeButtons address)
+                (makeButtons)
             , let
                 ( action, label ) =
                   if model.pst.isRunning then
@@ -155,7 +154,7 @@ view address model =
                   else
                     ( PacedSerialTask.Start, "Start" )
               in
-                button [ onClick address (Pasat.NestedPstAction action) ] [ text label ]
+                button [ onClick (Pasat.NestedPstAction action) ] [ text label ]
             ]
         ]
 
@@ -179,8 +178,8 @@ view address model =
     download =
       section
         [ class "pasat-download" ]
-        [ button [ onClick address Pasat.DownloadLog ] [ text "Download full outcomes log" ]
-        , button [ onClick address Pasat.DownloadAggregateData ] [ text "Download aggregate outcomes" ]
+        [ button [ onClick Pasat.DownloadLog ] [ text "Download full outcomes log" ]
+        , button [ onClick Pasat.DownloadAggregateData ] [ text "Download aggregate outcomes" ]
         ]
 
     -- groups
