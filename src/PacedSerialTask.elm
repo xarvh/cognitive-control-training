@@ -67,6 +67,7 @@ type Action pq answer
   | AutomaticStop SessionId
   | UpdateIsi String
   | UpdateDuration String
+  | Error String
 
 
 type Outcome
@@ -193,18 +194,14 @@ addRandomPq model =
 -- Main update
 --
 
-performTask : Task.Task a b -> Action pq answer -> Cmd (Action pq answer)
+performTask : Task.Task String b -> Action pq answer -> Cmd (Action pq answer)
 performTask task action =
-  Task.perform (\_ -> Debug.crash "") (\_ -> action) task
+  Task.perform Error (\_ -> action) task
 
 
 
 type alias EmitPq pq = pq -> Task.Task String ()
 
---   TaskFactories pq answer =
---   { emitPq : pq -> 
---   , triggerAction : Action pq answer -> Task.Task String ()
---   }
 
 
 update : EmitPq pq -> ( Time.Time, Action pq answer ) -> Model pq answer -> ( Model pq answer, Cmd (Action pq answer) )
@@ -239,7 +236,6 @@ update emitPq ( actionTimestamp, action ) oldModel =
     taskNewPq m =
       Process.spawn (taskEmit m) `Task.andThen` \_ -> Process.sleep (toFloat m.isi * Time.millisecond)
 
---     cmdNewPq : Model pq answer-> Cmd (Action pq answer)
     cmdNewPq m =
       performTask (taskNewPq m) (AnswerTimeout m.sessionId)
 
@@ -326,3 +322,10 @@ update emitPq ( actionTimestamp, action ) oldModel =
 
               Err _ ->
                 oldModel
+
+      -- TODO: show the error in the page
+      Error message ->
+        let
+            e = Debug.log "error" message
+        in
+           noCmd oldModel

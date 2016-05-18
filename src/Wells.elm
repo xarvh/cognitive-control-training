@@ -45,6 +45,7 @@ type alias Script =
 
 type Action
   = Noop
+  | Error String
 
   -- Playback
   | SoundLoaded SoundName Audio.Sound
@@ -122,9 +123,9 @@ noCmd model =
   ( model, Platform.Cmd.none )
 
 
-toActionCommand : Task.Task error success -> (success -> Action) -> Cmd Action
+toActionCommand : Task.Task String success -> (success -> Action) -> Cmd Action
 toActionCommand task actionConstructor =
-  Task.perform (\_ -> Debug.crash "XXX") actionConstructor task
+  Task.perform Error actionConstructor task
 
 
 toSilentCommand task =
@@ -169,7 +170,7 @@ syncSound : SoundState -> Cmd Action
 syncSound soundState =
   case soundState.playback of
     Ready ->
-      toSilentCommand <| Audio.stopSound soundState.sound
+      toSilentCommand <| Task.mapError (\_ -> "") <| Audio.stopSound soundState.sound
 
     PlayingLoop ->
       toSilentCommand <| Audio.playSound { defaultPlaybackOptions | loop = True, volume = 0.1 } soundState.sound
@@ -261,6 +262,14 @@ update action oldModel =
   in case action of
     Noop ->
       noCmd oldModel
+
+    -- TODO: show error in page
+    Error message ->
+      let
+          e = Debug.log "wells error" message
+      in
+         noCmd oldModel
+
 
     -- Sound control
     SoundLoaded soundName sound ->
