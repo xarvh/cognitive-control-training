@@ -55,8 +55,8 @@ noCmd m =
   ( m, Cmd.none )
 
 
-update : ( Time.Time, Action ) -> ( Model, x ) -> ( Model, Cmd Action )
-update ( timestamp, action ) ( oldModel, _ ) =
+update : Action -> Model -> ( Model, Cmd Action )
+update action oldModel =
 
   case action of
     TransitionTo page ->
@@ -72,7 +72,7 @@ update ( timestamp, action ) ( oldModel, _ ) =
     PasatAction pasatAction ->
       let
         ( pasatModel, pasatCmd ) =
-          Pasat.update downloadPort ( timestamp, pasatAction ) oldModel.pasat
+          Pasat.update downloadPort ( 0, pasatAction ) oldModel.pasat
       in
         ( { oldModel | pasat = pasatModel }, Cmd.map PasatAction pasatCmd )
 
