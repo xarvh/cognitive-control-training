@@ -1,4 +1,4 @@
-var elmApp = Elm.fullscreen(Elm.Main, {})
+var elmApp = Elm.Main.fullscreen();
 
 elmApp.ports.downloadPort.subscribe(function (tuple) {
     var name = tuple[0];

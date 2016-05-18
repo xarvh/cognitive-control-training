@@ -142,10 +142,10 @@ view model =
 
 
 
--- main =
---   Html.App.program
---     { init = state0
---     , view = view
---     , update = update'
---     , subscriptions = Sub.none
---     }
+main =
+  Html.App.program
+    { init = state0
+    , view = view
+    , update = update
+    , subscriptions = \_ -> Sub.none
+    }
