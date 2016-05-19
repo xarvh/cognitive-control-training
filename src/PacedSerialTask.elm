@@ -59,15 +59,18 @@ runInParallel cmdA cmdB =
 --
 
 
-type Action pq answer
-  = AnswerTimeout SessionId
+type Message answer
+  = Error String
+  | InitRandomSeed Time.Time
+
+  | UpdateIsi String
+  | UpdateDuration String
+
+  | AnswerTimeout SessionId
   | UserAnswers answer
   | Start
   | ManualStop
   | AutomaticStop SessionId
-  | UpdateIsi String
-  | UpdateDuration String
-  | Error String
 
 
 type Outcome
@@ -106,10 +109,12 @@ type alias Model pq answer =
   }
 
 
-model : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
-model key pqs isi duration =
+model0 : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
+model0 key pqs isi duration =
   Model key pqs True False [] isi 0 duration (Random.initialSeed 0) []
 
+cmd0 =
+  Task.perform (\_ -> Debug.crash "aaa") InitRandomSeed Time.now
 
 
 --
@@ -194,9 +199,9 @@ addRandomPq model =
 -- Main update
 --
 
-performTask : Task.Task String b -> Action pq answer -> Cmd (Action pq answer)
-performTask task action =
-  Task.perform Error (\_ -> action) task
+performTask : Task.Task String b -> Message answer -> Cmd (Message answer)
+performTask task message =
+  Task.perform Error (\_ -> message) task
 
 
 
@@ -204,8 +209,8 @@ type alias EmitPq pq = pq -> Task.Task String ()
 
 
 
-update : EmitPq pq -> ( Time.Time, Action pq answer ) -> Model pq answer -> ( Model pq answer, Cmd (Action pq answer) )
-update emitPq ( actionTimestamp, action ) oldModel =
+update : EmitPq pq -> Message answer -> Model pq answer -> ( Model pq answer, Cmd (Message answer) )
+update emitPq message oldModel =
   let
     noCmd m =
       ( m, Cmd.none )
@@ -244,7 +249,20 @@ update emitPq ( actionTimestamp, action ) oldModel =
 
 
   in
-    case action of
+    case message of
+
+      -- TODO: show the error in the page
+      Error message ->
+        let
+            e = Debug.log "error" message
+        in
+           noCmd oldModel
+
+
+      InitRandomSeed time ->
+        noCmd { oldModel | seed = Random.initialSeed <| floor (Debug.log "t" time) }
+
+
       --
       -- Session
       --
@@ -257,7 +275,6 @@ update emitPq ( actionTimestamp, action ) oldModel =
                   , sessionId = oldModel.sessionId + 1
                   , sessionPqs = []
                   , sessionOutcomes = []
-                  , seed = Random.initialSeed <| floor actionTimestamp * 1000
                 }
                   |> addRandomPq
 
@@ -276,6 +293,7 @@ update emitPq ( actionTimestamp, action ) oldModel =
         withinRunning
           <| withinSession sessionId
           <| noCmd { oldModel | isRunning = False }
+
 
       --
       -- Answers
@@ -323,9 +341,3 @@ update emitPq ( actionTimestamp, action ) oldModel =
               Err _ ->
                 oldModel
 
-      -- TODO: show the error in the page
-      Error message ->
-        let
-            e = Debug.log "error" message
-        in
-           noCmd oldModel

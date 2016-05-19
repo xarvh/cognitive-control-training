@@ -112,7 +112,7 @@ view model =
             ]
         ]
 
-    numericInput : String -> Float -> (String -> PacedSerialTask.Action Int Int) -> String -> Html Pasat.Action
+    numericInput : String -> Float -> (String -> PacedSerialTask.Message Int) -> String -> Html Pasat.Action
     numericInput label v action units =
       div
         [ class "row" ]

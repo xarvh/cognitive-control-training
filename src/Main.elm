@@ -72,7 +72,7 @@ update action oldModel =
     PasatAction pasatAction ->
       let
         ( pasatModel, pasatCmd ) =
-          Pasat.update downloadPort ( 0, pasatAction ) oldModel.pasat
+          Pasat.update downloadPort pasatAction oldModel.pasat
       in
         ( { oldModel | pasat = pasatModel }, Cmd.map PasatAction pasatCmd )
 

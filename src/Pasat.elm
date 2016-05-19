@@ -57,7 +57,7 @@ type alias PstModel =
 
 
 type alias PstAction =
-  PacedSerialTask.Action Pq Answer
+  PacedSerialTask.Message Answer
 
 
 type alias Voice =
@@ -73,6 +73,7 @@ type Action
   | SelectVoice Voice
   | SoundLoaded Pq Audio.Sound
   | NestedPstAction PstAction
+  | TimestampedPstAction PstAction Time.Time
   | DownloadLog
   | DownloadAggregateData
 
@@ -115,8 +116,13 @@ possibleDigits =
 
 
 model isi duration voice =
-  Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice Dict.empty
+  Model (PacedSerialTask.model0 sumOfLastTwoDigits possibleDigits isi duration) [] [] voice Dict.empty
 
+
+
+--
+-- CSV stuff
+--
 
 table2Csv : List (List String) -> String
 table2Csv table =
@@ -234,8 +240,10 @@ state0 =
   let
     model0 =
       model 3000 5 "english/ossi"
+
+    (newModel, loadCmd) = loadVoiceTask model0
   in
-    loadVoiceTask model0
+    (newModel, Cmd.batch [ Cmd.map NestedPstAction PacedSerialTask.cmd0, loadCmd ])
 
 
 
@@ -248,8 +256,8 @@ type alias DownloadCmd =
 
 
 
-update : DownloadCmd -> ( Time.Time, Action ) -> Model -> ( Model, Cmd Action )
-update downloadCmd ( timestamp, action ) oldModel =
+update : DownloadCmd -> Action -> Model -> ( Model, Cmd Action )
+update downloadCmd action oldModel =
   let
     noCmd m =
       ( m, Cmd.none )
@@ -261,7 +269,7 @@ update downloadCmd ( timestamp, action ) oldModel =
         noCmd oldModel
 
     downloadFilename name =
-      Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime timestamp) ++ name ++ ".csv"
+      Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime 0) ++ name ++ ".csv"
 
     downloadCsv name transform =
       ( oldModel, downloadCmd ( downloadFilename name, "text/csv", transform oldModel.outcomesLog ) )
@@ -289,6 +297,9 @@ update downloadCmd ( timestamp, action ) oldModel =
         downloadCsv "aggregate" log2aggregateCsv
 
       NestedPstAction pstAction ->
+        (oldModel, Task.perform identity (TimestampedPstAction pstAction) Time.now)
+
+      TimestampedPstAction pstAction timestamp ->
         if Dict.size oldModel.sounds < List.length possibleDigits then
           noCmd oldModel
         else
@@ -302,11 +313,8 @@ update downloadCmd ( timestamp, action ) oldModel =
                   Nothing ->
                     Task.fail <| "sound " ++ toString digit ++ " not loaded"
 
-            timestampedPstAction =
-              ( timestamp, pstAction )
-
             ( pstModel, cmd ) =
-              PacedSerialTask.update emitPq timestampedPstAction oldModel.pst
+              PacedSerialTask.update emitPq pstAction oldModel.pst
 
             entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
             entries o =
@@ -322,7 +330,7 @@ update downloadCmd ( timestamp, action ) oldModel =
           in
             ( { oldModel
                 | pst = pstModel
-                , actionsLog = timestampedPstAction :: oldModel.actionsLog
+                , actionsLog = ( timestamp, pstAction ) :: oldModel.actionsLog
                 , outcomesLog = List.append oldModel.outcomesLog append
               }
             , Cmd.map NestedPstAction cmd
