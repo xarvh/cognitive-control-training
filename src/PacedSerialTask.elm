@@ -184,7 +184,7 @@ addRandomPq model =
   in
     case pq of
       Nothing ->
-        Debug.crash "Zero partial qustions specified!"
+        Debug.crash "Zero partial questions specified!"
 
       Just pq' ->
         { model
@@ -260,7 +260,10 @@ update emitPq message oldModel =
 
 
       InitRandomSeed time ->
-        noCmd { oldModel | seed = Random.initialSeed <| floor (Debug.log "t" time) }
+        -- `time` values within a minute to each other seem to produce the same initial random digit.
+        -- Times further away seem to be more genuinely random. Since the latter is the app use case,
+        -- no correction seems necessary.
+        noCmd { oldModel | seed = Random.initialSeed <| floor time }
 
 
       --
