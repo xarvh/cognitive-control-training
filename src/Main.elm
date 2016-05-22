@@ -133,15 +133,6 @@ view model =
 --
 
 
--- update' message state =
---   let
---     (model, task) = update message state
---     cmd = Task.perform (\_ -> Noop) (\_ -> Noop) task
---   in
---     (model, cmd)
-
-
-
 main =
   Html.App.program
     { init = state0

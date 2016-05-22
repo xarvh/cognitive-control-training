@@ -49,19 +49,13 @@ takeWhile predicate list =
       []
 
 
-runInParallel cmdA cmdB =
-  Cmd.batch [cmdA, cmdB]
-
-
-
 --
 -- Model
 --
 
 
 type Message answer
-  = Error String
-  | InitRandomSeed Time.Time
+  = InitRandomSeed Time.Time
 
   | UpdateIsi String
   | UpdateDuration String
@@ -114,7 +108,7 @@ model0 key pqs isi duration =
   Model key pqs True False [] isi 0 duration (Random.initialSeed 0) []
 
 cmd0 =
-  Task.perform (\_ -> Debug.crash "aaa") InitRandomSeed Time.now
+  Task.perform (\_ -> ManualStop) InitRandomSeed Time.now
 
 
 --
@@ -184,6 +178,7 @@ addRandomPq model =
   in
     case pq of
       Nothing ->
+        -- TODO: fail at model0 rather than here
         Debug.crash "Zero partial questions specified!"
 
       Just pq' ->
@@ -198,72 +193,29 @@ addRandomPq model =
 --
 -- Main update
 --
-
-performTask : Task.Task String b -> Message answer -> Cmd (Message answer)
-performTask task message =
-  Task.perform Error (\_ -> message) task
-
-
-
-type alias EmitPq pq = pq -> Task.Task String ()
-
-
-
-update : EmitPq pq -> Message answer -> Model pq answer -> ( Model pq answer, Cmd (Message answer) )
-update emitPq message oldModel =
+update : Message answer -> Model pq answer -> ( Model pq answer, Cmd (Message answer), Maybe pq )
+update message oldModel =
   let
-    noCmd m =
-      ( m, Cmd.none )
+    modelOnly m = ( m, Cmd.none, Nothing )
 
-    withinSession sessionId m =
-      if sessionId == oldModel.sessionId then
-        m
-      else
-        noCmd oldModel
-
-    withinRunning m =
-      if oldModel.isRunning then
-        m
-      else
-        noCmd oldModel
-
-    withinWaiting m =
-      if not oldModel.isRunning then
-        m
-      else
-        noCmd oldModel
-
-    taskEmit m =
-      case List.head m.sessionPqs of
-          Just pq -> emitPq pq
-          Nothing -> Task.succeed ()
-
-    taskNewPq m =
-      Process.spawn (taskEmit m) `Task.andThen` \_ -> Process.sleep (toFloat m.isi * Time.millisecond)
-
-    cmdNewPq m =
-      performTask (taskNewPq m) (AnswerTimeout m.sessionId)
+    withinSession sessionId newState = if sessionId == oldModel.sessionId then newState else modelOnly oldModel
+    withinRunning newState = if oldModel.isRunning then newState else modelOnly oldModel
+    withinWaiting newState = if not oldModel.isRunning then newState else modelOnly oldModel
 
     cmdDelayMessage delay message =
-      performTask (Process.sleep delay) message
+      Task.perform (\_ -> ManualStop) (\_ -> message) (Process.sleep delay)
 
+    newPq m =
+      ( List.head m.sessionPqs, cmdDelayMessage (toFloat m.isi * Time.millisecond) (AnswerTimeout m.sessionId) )
 
   in
     case message of
-
-      -- TODO: show the error in the page
-      Error message ->
-        let
-            e = Debug.log "error" message
-        in
-           noCmd oldModel
-
 
       InitRandomSeed time ->
         -- `time` values within a minute to each other seem to produce the same initial random digit.
         -- Times further away seem to be more genuinely random. Since the latter is the app use case,
         -- no correction seems necessary.
-        noCmd { oldModel | seed = Random.initialSeed <| floor time }
+        modelOnly { oldModel | seed = Random.initialSeed <| floor time }
 
 
       --
@@ -272,7 +224,7 @@ update emitPq message oldModel =
       Start ->
         withinWaiting
           <| let
-              updatedModel =
+              newModel =
                 { oldModel
                   | isRunning = True
                   , sessionId = oldModel.sessionId + 1
@@ -281,21 +233,19 @@ update emitPq message oldModel =
                 }
                   |> addRandomPq
 
-              cmd =
-                runInParallel
-                  (cmdDelayMessage (toFloat updatedModel.duration * Time.minute) (AutomaticStop updatedModel.sessionId))
-                  (cmdNewPq updatedModel)
+              ( maybePq, pqCmd ) = newPq newModel
+              stopCmd = cmdDelayMessage (toFloat newModel.duration * Time.minute) (AutomaticStop newModel.sessionId)
              in
-              (updatedModel, cmd)
+              ( newModel, Cmd.batch [pqCmd, stopCmd], maybePq )
 
       ManualStop ->
         withinRunning
-          <| noCmd { oldModel | isRunning = False }
+          <| modelOnly { oldModel | isRunning = False }
 
       AutomaticStop sessionId ->
         withinRunning
           <| withinSession sessionId
-          <| noCmd { oldModel | isRunning = False }
+          <| modelOnly { oldModel | isRunning = False }
 
 
       --
@@ -303,7 +253,7 @@ update emitPq message oldModel =
       --
       UserAnswers answerValue ->
         withinRunning
-          <| noCmd
+          <| modelOnly
           <| setAnswer oldModel
           <| Just answerValue
 
@@ -311,13 +261,10 @@ update emitPq message oldModel =
         withinRunning
           <| withinSession sessionId
           <| let
-              updatedModel =
-                setAnswer oldModel Nothing |> addRandomPq
-
-              task =
-                cmdNewPq updatedModel
+              newModel = setAnswer oldModel Nothing |> addRandomPq
+              ( maybePq, cmd ) = newPq newModel
              in
-              ( updatedModel, task )
+              ( newModel, cmd, maybePq )
 
       --
       -- Input fields updates
@@ -326,7 +273,7 @@ update emitPq message oldModel =
       --
       UpdateIsi isiString ->
         withinWaiting
-          <| noCmd
+          <| modelOnly
           <| case String.toInt isiString of
               Ok isi ->
                 { oldModel | isi = isi }
@@ -336,7 +283,7 @@ update emitPq message oldModel =
 
       UpdateDuration durationString ->
         withinWaiting
-          <| noCmd
+          <| modelOnly
           <| case String.toInt durationString of
               Ok duration ->
                 { oldModel | duration = duration }

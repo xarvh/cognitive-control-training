@@ -18,6 +18,10 @@ import PacedSerialTask
 --
 
 
+(&>) = Maybe.andThen
+infixl 9 &>
+
+
 groupBy : (a -> b) -> List a -> List ( b, List a )
 groupBy selector list =
   case list of
@@ -69,7 +73,8 @@ type alias Progress =
 
 
 type Action
-  = LoadError String
+  = Error String
+  | Noop
   | SelectVoice Voice
   | SoundLoaded Pq Audio.Sound
   | NestedPstAction PstAction
@@ -123,6 +128,7 @@ model isi duration voice =
 --
 -- CSV stuff
 --
+
 
 table2Csv : List (List String) -> String
 table2Csv table =
@@ -224,7 +230,7 @@ loadVoiceTask : Model -> ( Model, Cmd Action )
 loadVoiceTask oldModel =
   let
     loadSound digit =
-      Task.perform LoadError (SoundLoaded digit) (Audio.loadSound <| "assets/sounds/pasat/" ++ oldModel.voice ++ "/" ++ toString digit ++ ".ogg")
+      Task.perform Error (SoundLoaded digit) (Audio.loadSound <| "assets/sounds/pasat/" ++ oldModel.voice ++ "/" ++ toString digit ++ ".ogg")
 
     allCmds =
       List.map loadSound possibleDigits
@@ -251,6 +257,7 @@ state0 =
 -- UPDATE
 --
 
+
 type alias DownloadCmd =
   ( String, String, String ) -> Cmd Action
 
@@ -276,7 +283,10 @@ update downloadCmd action oldModel =
   in
     case action of
       -- TODO: give some friendly message to the user
-      LoadError message ->
+      Error message ->
+        noCmd oldModel
+
+      Noop ->
         noCmd oldModel
 
       SelectVoice voice ->
@@ -300,38 +310,37 @@ update downloadCmd action oldModel =
         (oldModel, Task.perform identity (TimestampedPstAction pstAction) Time.now)
 
       TimestampedPstAction pstAction timestamp ->
-        if Dict.size oldModel.sounds < List.length possibleDigits then
-          noCmd oldModel
-        else
-          let
-            emitPq =
-              \digit ->
-                case Dict.get digit oldModel.sounds of
-                  Just sound ->
-                    Task.mapError (\_ -> "") (Audio.playSound Audio.defaultPlaybackOptions sound)
+        let
+          ( pstModel, pstCmd, maybeDigit ) =
+            PacedSerialTask.update pstAction oldModel.pst
 
-                  Nothing ->
-                    Task.fail <| "sound " ++ toString digit ++ " not loaded"
+          cmd = Cmd.batch
+            [ Cmd.map NestedPstAction pstCmd
 
-            ( pstModel, cmd ) =
-              PacedSerialTask.update emitPq pstAction oldModel.pst
+            , Maybe.withDefault Cmd.none <|
+              maybeDigit &> \digit ->
+              Dict.get digit oldModel.sounds &> \sound ->
+              Just <| Task.perform Error (\_ -> Noop) (Audio.playSound Audio.defaultPlaybackOptions sound)
+            ]
 
-            entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
-            entries o =
-              [ OutcomeLogEntry timestamp pstModel.sessionId oldModel.pst.isi o ]
+          entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
+          entries o =
+            [ OutcomeLogEntry timestamp pstModel.sessionId oldModel.pst.isi o ]
 
-            append =
-              if List.length pstModel.sessionOutcomes > List.length oldModel.pst.sessionOutcomes then
-                entries <| List.head pstModel.sessionOutcomes
-              else if pstModel.isRunning /= oldModel.pst.isRunning then
-                entries Nothing
-              else
-                []
-          in
-            ( { oldModel
-                | pst = pstModel
-                , actionsLog = ( timestamp, pstAction ) :: oldModel.actionsLog
-                , outcomesLog = List.append oldModel.outcomesLog append
-              }
-            , Cmd.map NestedPstAction cmd
-            )
+          append =
+            if List.length pstModel.sessionOutcomes > List.length oldModel.pst.sessionOutcomes then
+              entries <| List.head pstModel.sessionOutcomes
+            else if pstModel.isRunning /= oldModel.pst.isRunning then
+              entries Nothing
+            else
+              []
+
+          newModel =
+            { oldModel
+            | pst = pstModel
+            , actionsLog = ( timestamp, pstAction ) :: oldModel.actionsLog
+            , outcomesLog = List.append oldModel.outcomesLog append
+            }
+
+        in
+          ( newModel, cmd )
