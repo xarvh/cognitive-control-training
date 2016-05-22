@@ -1,19 +1,15 @@
-module Main (..) where
+port module Main exposing (..)
 
-import Signal
 import Task
 import Time
 import Html exposing (div, text)
+import Html.App
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (disabled)
 import AboutView
 import Wells
 import Pasat
 import PasatView
-
-
-type alias SimpleTask =
-  Task.Task () ()
 
 
 
@@ -36,46 +32,17 @@ type alias Model =
 
 
 type Action
-  = TransitionTo Page
+  = Noop
+  | TransitionTo Page
   | WellsAction Wells.Action
   | PasatAction Pasat.Action
 
 
 
 --
--- PORTS & MAILBOXES
+-- PORTS
 --
-
-
-actionsMailbox : Signal.Mailbox Action
-actionsMailbox =
-  Signal.mailbox <| TransitionTo About
-
-
-
--- Download port
-
-
-downloadPortMailbox : Signal.Mailbox ( String, String, String )
-downloadPortMailbox =
-  Signal.mailbox ( "", "", "" )
-
-
-port downloadPort : Signal.Signal ( String, String, String )
-port downloadPort =
-  downloadPortMailbox.signal
-
-
-
---
--- FACTORIES
---
-
-
-taskFactories actionConstructor =
-  { triggerAction = (Signal.send actionsMailbox.address) << actionConstructor
-  , download = Signal.send downloadPortMailbox.address
-  }
+port downloadPort : ( String, String, String ) -> Cmd msg
 
 
 
@@ -84,48 +51,48 @@ taskFactories actionConstructor =
 --
 
 
-noTask m =
-  ( m, Task.succeed () )
+noCmd m =
+  ( m, Cmd.none )
 
 
-update ( timestamp, action ) ( oldModel, tasks ) =
+update : Action -> Model -> ( Model, Cmd Action )
+update action oldModel =
+
   case action of
     TransitionTo page ->
-      noTask { oldModel | page = page }
+      noCmd { oldModel | page = page }
 
     WellsAction wellsAction ->
       let
-        factories =
-          { triggerAction = (taskFactories WellsAction).triggerAction }
-
-        ( wellsModel, task ) =
-          Wells.update factories wellsAction oldModel.wells
+        ( wellsModel, wellsCmd ) =
+          Wells.update wellsAction oldModel.wells
       in
-        ( { oldModel | wells = wellsModel }, task )
+        ( { oldModel | wells = wellsModel }, Cmd.map WellsAction wellsCmd )
 
     PasatAction pasatAction ->
       let
-        factories =
-          taskFactories PasatAction
-
-        ( pasatModel, task ) =
-          Pasat.update factories ( timestamp, pasatAction ) oldModel.pasat
+        ( pasatModel, pasatCmd ) =
+          Pasat.update downloadPort pasatAction oldModel.pasat
       in
-        ( { oldModel | pasat = pasatModel }, task )
+        ( { oldModel | pasat = pasatModel }, Cmd.map PasatAction pasatCmd )
+
+    Noop ->
+      noCmd oldModel
+
 
 
 state0 =
   let
-    ( pasatModel0, pasatTask0 ) =
-      Pasat.state0 <| taskFactories PasatAction
+    ( pasatModel0, pasatCmd0 ) =
+      Pasat.state0
 
-    ( wellsModel0, wellsTask0 ) =
-      Wells.state0 <| { triggerAction = (taskFactories WellsAction).triggerAction }
+    ( wellsModel0, wellsCmd0 ) =
+      Wells.state0
 
     model =
       Model Wells pasatModel0 wellsModel0
   in
-    ( model, wellsTask0 `Task.andThen` \_ -> pasatTask0 )
+    ( model, Cmd.batch [Cmd.map WellsAction wellsCmd0, Cmd.map PasatAction pasatCmd0] )
 
 
 
@@ -134,8 +101,8 @@ state0 =
 --
 
 
-view : Signal.Address Action -> Model -> Html.Html
-view address model =
+view : Model -> Html.Html Action
+view model =
   let
     page =
       case model.page of
@@ -143,13 +110,13 @@ view address model =
           AboutView.view
 
         Wells ->
-          Wells.view (Signal.forwardTo actionsMailbox.address WellsAction) model.wells
+          Html.App.map WellsAction <| Wells.view model.wells
 
         Pasat ->
-          PasatView.view (Signal.forwardTo actionsMailbox.address PasatAction) model.pasat
+          Html.App.map PasatAction <| PasatView.view model.pasat
 
     pageSelector page =
-      div [ onClick address <| TransitionTo page, disabled <| model.page == page ] [ text <| toString page ]
+      div [ onClick <| TransitionTo page, disabled <| model.page == page ] [ text <| toString page ]
   in
     div
       []
@@ -166,14 +133,10 @@ view address model =
 --
 
 
-modelAndTasksSignal =
-  Signal.foldp update state0 (Time.timestamp actionsMailbox.signal)
-
-
 main =
-  Signal.map ((view actionsMailbox.address) << fst) modelAndTasksSignal
-
-
-port tasks : Signal (Task.Task String ())
-port tasks =
-  Signal.map snd modelAndTasksSignal
+  Html.App.program
+    { init = state0
+    , view = view
+    , update = update
+    , subscriptions = \_ -> Sub.none
+    }

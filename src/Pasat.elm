@@ -1,10 +1,10 @@
-module Pasat (..) where
+module Pasat exposing (..)
 
 import Audio
 import Date
 import Date.Format
 import Dict
-import Signal
+import Process
 import String
 import Time
 import Task
@@ -16,6 +16,10 @@ import PacedSerialTask
 --
 -- (I do long for Python's "batteries included")
 --
+
+
+(&>) = Maybe.andThen
+infixl 9 &>
 
 
 groupBy : (a -> b) -> List a -> List ( b, List a )
@@ -57,7 +61,7 @@ type alias PstModel =
 
 
 type alias PstAction =
-  PacedSerialTask.Action Pq Answer
+  PacedSerialTask.Message Answer
 
 
 type alias Voice =
@@ -69,9 +73,12 @@ type alias Progress =
 
 
 type Action
-  = SelectVoice Voice
+  = Error String
+  | Noop
+  | SelectVoice Voice
   | SoundLoaded Pq Audio.Sound
   | NestedPstAction PstAction
+  | TimestampedPstAction PstAction Time.Time
   | DownloadLog
   | DownloadAggregateData
 
@@ -114,7 +121,13 @@ possibleDigits =
 
 
 model isi duration voice =
-  Model (PacedSerialTask.model sumOfLastTwoDigits possibleDigits isi duration) [] [] voice Dict.empty
+  Model (PacedSerialTask.model0 sumOfLastTwoDigits possibleDigits isi duration) [] [] voice Dict.empty
+
+
+
+--
+-- CSV stuff
+--
 
 
 table2Csv : List (List String) -> String
@@ -209,47 +222,34 @@ log2aggregateCsv log =
 
 
 --
--- TASK FACTORIES
+-- CMD FACTORIES
 --
 
 
-type alias SimpleTask =
-  Task.Task String ()
-
-
-type alias TaskFactories =
-  { triggerAction : Action -> SimpleTask
-  , download : ( String, String, String ) -> SimpleTask
-  }
-
-
-loadVoiceTask : TaskFactories -> Model -> ( Model, SimpleTask )
-loadVoiceTask factories oldModel =
+loadVoiceTask : Model -> ( Model, Cmd Action )
+loadVoiceTask oldModel =
   let
     loadSound digit =
-      (Audio.loadSound <| "assets/sounds/pasat/" ++ oldModel.voice ++ "/" ++ toString digit ++ ".ogg")
-        `Task.andThen` (\sound -> factories.triggerAction <| SoundLoaded digit sound)
+      Task.perform Error (SoundLoaded digit) (Audio.loadSound <| "assets/sounds/pasat/" ++ oldModel.voice ++ "/" ++ toString digit ++ ".ogg")
 
-    add digit mainTask =
-      Task.spawn (loadSound digit)
-        `Task.andThen` (\_ -> mainTask)
-
-    allTasks =
-      List.foldl add (Task.succeed ()) possibleDigits
+    allCmds =
+      List.map loadSound possibleDigits
 
     newModel =
       { oldModel | sounds = Dict.empty }
   in
-    ( newModel, allTasks )
+    ( newModel, Cmd.batch allCmds )
 
 
-state0 : TaskFactories -> ( Model, SimpleTask )
-state0 factories =
+state0 : ( Model, Cmd Action )
+state0 =
   let
     model0 =
       model 3000 5 "english/ossi"
+
+    (newModel, loadCmd) = loadVoiceTask model0
   in
-    loadVoiceTask factories model0
+    (newModel, Cmd.batch [ Cmd.map NestedPstAction PacedSerialTask.cmd0, loadCmd ])
 
 
 
@@ -258,35 +258,47 @@ state0 factories =
 --
 
 
-update : TaskFactories -> ( Time.Time, Action ) -> Model -> ( Model, Task.Task String () )
-update factories ( timestamp, action ) oldModel =
+type alias DownloadCmd =
+  ( String, String, String ) -> Cmd Action
+
+
+
+update : DownloadCmd -> Action -> Model -> ( Model, Cmd Action )
+update downloadCmd action oldModel =
   let
-    noTask m =
-      ( m, Task.succeed () )
+    noCmd m =
+      ( m, Cmd.none )
 
     withinWaiting m =
       if not oldModel.pst.isRunning then
         m
       else
-        noTask oldModel
+        noCmd oldModel
 
     downloadFilename name =
-      Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime timestamp) ++ name ++ ".csv"
+      Date.Format.format "pasat_%Y%m%d_%H%M_" (Date.fromTime 0) ++ name ++ ".csv"
 
     downloadCsv name transform =
-      ( oldModel, factories.download ( downloadFilename name, "text/csv", transform oldModel.outcomesLog ) )
+      ( oldModel, downloadCmd ( downloadFilename name, "text/csv", transform oldModel.outcomesLog ) )
   in
     case action of
+      -- TODO: give some friendly message to the user
+      Error message ->
+        noCmd oldModel
+
+      Noop ->
+        noCmd oldModel
+
       SelectVoice voice ->
         withinWaiting
           <| let
               model =
                 { oldModel | voice = voice }
              in
-              loadVoiceTask factories model
+              loadVoiceTask model
 
       SoundLoaded digit sound ->
-        noTask { oldModel | sounds = Dict.insert digit sound oldModel.sounds }
+        noCmd { oldModel | sounds = Dict.insert digit sound oldModel.sounds }
 
       DownloadLog ->
         downloadCsv "log" log2csv
@@ -295,44 +307,40 @@ update factories ( timestamp, action ) oldModel =
         downloadCsv "aggregate" log2aggregateCsv
 
       NestedPstAction pstAction ->
-        if Dict.size oldModel.sounds < List.length possibleDigits then
-          noTask oldModel
-        else
-          let
-            factories' =
-              { triggerAction = factories.triggerAction << NestedPstAction
-              , emitPq =
-                  \digit ->
-                    case Dict.get digit oldModel.sounds of
-                      Just sound ->
-                        Task.mapError (\_ -> "") (Audio.playSound Audio.defaultPlaybackOptions sound)
+        (oldModel, Task.perform identity (TimestampedPstAction pstAction) Time.now)
 
-                      Nothing ->
-                        Task.fail <| "sound " ++ toString digit ++ " not loaded"
-              }
+      TimestampedPstAction pstAction timestamp ->
+        let
+          ( pstModel, pstCmd, maybeDigit ) =
+            PacedSerialTask.update pstAction oldModel.pst
 
-            timestampedPstAction =
-              ( timestamp, pstAction )
+          cmd = Cmd.batch
+            [ Cmd.map NestedPstAction pstCmd
 
-            ( pstModel, task ) =
-              PacedSerialTask.update factories' timestampedPstAction oldModel.pst
+            , Maybe.withDefault Cmd.none <|
+              maybeDigit &> \digit ->
+              Dict.get digit oldModel.sounds &> \sound ->
+              Just <| Task.perform Error (\_ -> Noop) (Audio.playSound Audio.defaultPlaybackOptions sound)
+            ]
 
-            entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
-            entries o =
-              [ OutcomeLogEntry timestamp pstModel.sessionId oldModel.pst.isi o ]
+          entries : Maybe PacedSerialTask.Outcome -> List OutcomeLogEntry
+          entries o =
+            [ OutcomeLogEntry timestamp pstModel.sessionId oldModel.pst.isi o ]
 
-            append =
-              if List.length pstModel.sessionOutcomes > List.length oldModel.pst.sessionOutcomes then
-                entries <| List.head pstModel.sessionOutcomes
-              else if pstModel.isRunning /= oldModel.pst.isRunning then
-                entries Nothing
-              else
-                []
-          in
-            ( { oldModel
-                | pst = pstModel
-                , actionsLog = timestampedPstAction :: oldModel.actionsLog
-                , outcomesLog = List.append oldModel.outcomesLog append
-              }
-            , task
-            )
+          append =
+            if List.length pstModel.sessionOutcomes > List.length oldModel.pst.sessionOutcomes then
+              entries <| List.head pstModel.sessionOutcomes
+            else if pstModel.isRunning /= oldModel.pst.isRunning then
+              entries Nothing
+            else
+              []
+
+          newModel =
+            { oldModel
+            | pst = pstModel
+            , actionsLog = ( timestamp, pstAction ) :: oldModel.actionsLog
+            , outcomesLog = List.append oldModel.outcomesLog append
+            }
+
+        in
+          ( newModel, cmd )

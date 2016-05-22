@@ -1,11 +1,12 @@
-module Wells (..) where
+module Wells exposing (..)
 
 import Audio exposing (defaultPlaybackOptions)
 import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
-import Signal
+import Process
+import Platform.Cmd
 import String
 import Task
 
@@ -43,8 +44,11 @@ type alias Script =
 
 
 type Action
+  = Noop
+  | Error String
+
   -- Playback
-  = SoundLoaded SoundName Audio.Sound
+  | SoundLoaded SoundName Audio.Sound
   | PlaybackComplete Audio.Sound
 
   -- Ui
@@ -60,14 +64,6 @@ type alias Model =
   , tab : Tab
   , script : Script
   }
-
-
-type alias SimpleTask =
-  Task.Task String ()
-
-
-type alias TaskFactories =
-  { triggerAction : Action -> SimpleTask }
 
 
 --
@@ -123,14 +119,18 @@ allSoundNames =
 --
 -- Helpers
 --
-noTask model =
-  ( model, Task.succeed () )
+noCmd model =
+  ( model, Platform.Cmd.none )
 
-dropTaskResult =
-  Task.map (\_ -> ())
 
-toSimpleTask =
-  Task.mapError (\_ -> "")
+toActionCommand : Task.Task String success -> (success -> Action) -> Cmd Action
+toActionCommand task actionConstructor =
+  Task.perform Error actionConstructor task
+
+
+toSilentCommand task =
+  toActionCommand task (\_ -> Noop)
+
 
 
 --
@@ -138,24 +138,22 @@ toSimpleTask =
 --
 -- These functions help ensure that the model is always up to date regarding the playback state of each sound.
 --
-state0 : TaskFactories -> ( Model, SimpleTask )
-state0 factories =
+state0 : ( Model, Cmd Action )
+state0 =
   let
     uri soundName =
       "assets/sounds/wells/" ++ soundName ++ ".ogg"
 
     loadSound soundName =
-      (Audio.loadSound <| uri soundName)
-      `Task.andThen`
-      (factories.triggerAction << SoundLoaded soundName)
+      toActionCommand (Audio.loadSound <| uri soundName) (SoundLoaded soundName)
 
-    task0 =
-      dropTaskResult <| Task.sequence <| List.map loadSound allSoundNames
+    cmd0 =
+      Platform.Cmd.batch <| List.map loadSound allSoundNames
 
     model0 =
       Model Dict.empty SoundCheck script0
   in
-    ( model0, task0 )
+    ( model0, cmd0 )
 
 
 actionSoundLoaded : SoundName -> Audio.Sound -> Model -> Model
@@ -168,19 +166,17 @@ actionSoundLoaded soundName sound model =
      { model | sounds = sounds }
 
 
-syncSound : TaskFactories -> SoundState -> SimpleTask
-syncSound factories soundState =
+syncSound : SoundState -> Cmd Action
+syncSound soundState =
   case soundState.playback of
     Ready ->
-      toSimpleTask <| Audio.stopSound soundState.sound
+      toSilentCommand <| Task.mapError (\_ -> "") <| Audio.stopSound soundState.sound
 
     PlayingLoop ->
-      toSimpleTask <| Audio.playSound { defaultPlaybackOptions | loop = True, volume = 0.1 } soundState.sound
+      toSilentCommand <| Audio.playSound { defaultPlaybackOptions | loop = True, volume = 0.1 } soundState.sound
 
     Playing ->
-      (toSimpleTask <| Audio.playSound defaultPlaybackOptions soundState.sound)
-      `Task.andThen`
-      \_ -> factories.triggerAction <| PlaybackComplete soundState.sound
+      toActionCommand (Audio.playSound defaultPlaybackOptions soundState.sound) (\_ -> PlaybackComplete soundState.sound)
 
 
 actionPlaybackComplete : Audio.Sound -> Model -> Model
@@ -192,20 +188,20 @@ actionPlaybackComplete sound model =
      { model | sounds = sounds }
 
 
-controlSound : PlaybackState -> TaskFactories -> SoundName -> Model -> (Model, SimpleTask)
-controlSound playback factories soundName model =
+controlSound : PlaybackState -> SoundName -> Model -> (Model, Cmd Action)
+controlSound playback soundName model =
   case Dict.get soundName model.sounds of
-    Nothing -> noTask model
+    Nothing -> noCmd model
     Just soundState ->
       if soundState.playback == playback
-      then noTask model
+      then noCmd model
       else
         let
             state = { soundState | playback = playback }
             sounds = Dict.insert soundName state model.sounds
-            task = syncSound factories state
+            cmd = syncSound state
         in
-           ({ model | sounds = sounds }, task)
+           ({ model | sounds = sounds }, cmd)
 
 
 playSound = controlSound Playing
@@ -216,32 +212,32 @@ stopSound = controlSound Ready
 --
 --
 --
-playBackground : TaskFactories -> List SoundName -> (Model, SimpleTask) -> (Model, SimpleTask)
-playBackground factories soundsToLoop initialState =
+playBackground : List SoundName -> (Model, Cmd Action) -> (Model, Cmd Action)
+playBackground soundsToLoop initialState =
   let
-      controlSound soundName (oldModel, task) =
+      controlSound soundName (oldModel, oldCmd) =
         let
           shouldLoop = List.member soundName soundsToLoop
-          (newModel, soundTask) = (if shouldLoop then loopSound else stopSound) factories soundName oldModel
+          (newModel, soundCmd) = (if shouldLoop then loopSound else stopSound) soundName oldModel
         in
-          (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
+          (newModel, Platform.Cmd.batch [oldCmd, soundCmd])
   in
     List.foldl controlSound initialState allBackgroundSoundNames
 
 
-startStopScript : TaskFactories -> SoundName -> (Model, SimpleTask) -> (Model, SimpleTask)
-startStopScript factories scriptSoundName initialState =
+startStopScript : SoundName -> (Model, Cmd Action) -> (Model, Cmd Action)
+startStopScript scriptSoundName initialState =
   let
       isAlreadyPlaying = case Dict.get scriptSoundName (fst initialState).sounds of
         Nothing -> False
         Just state -> state.playback /= Ready
 
-      controlSound soundName (oldModel, task) =
+      controlSound soundName (oldModel, oldCmd) =
         let
           shouldPlay = soundName == scriptSoundName && not isAlreadyPlaying
-          (newModel, soundTask) = (if shouldPlay then playSound else stopSound) factories soundName oldModel
+          (newModel, soundCmd) = (if shouldPlay then playSound else stopSound) soundName oldModel
         in
-          (newModel, (Task.spawn soundTask) `Task.andThen` (\_ -> task))
+          (newModel, Platform.Cmd.batch [oldCmd, soundCmd])
   in
     List.foldl controlSound initialState allScriptSoundNames
 
@@ -251,55 +247,65 @@ startStopScript factories scriptSoundName initialState =
 --
 
 
-update : TaskFactories -> Action -> Model -> ( Model, SimpleTask )
-update factories action oldModel =
+update : Action -> Model -> ( Model, Cmd Action )
+update action oldModel =
   let
     startStopSound soundName model =
       case Dict.get soundName model.sounds of
-        Nothing -> noTask model
-        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) factories soundName model
+        Nothing -> noCmd model
+        Just soundState -> (if soundState.playback == Ready then playSound else stopSound) soundName model
 
     stopAll state =
-      playBackground factories [] state |>
-      startStopScript factories ""
+      playBackground [] state |>
+      startStopScript ""
 
   in case action of
+    Noop ->
+      noCmd oldModel
+
+    -- TODO: show error in page
+    Error message ->
+      let
+          e = Debug.log "wells error" message
+      in
+         noCmd oldModel
+
 
     -- Sound control
     SoundLoaded soundName sound ->
-      noTask <| actionSoundLoaded soundName sound oldModel
+      noCmd <| actionSoundLoaded soundName sound oldModel
 
     PlaybackComplete sound ->
-      noTask <| actionPlaybackComplete sound oldModel
+      noCmd <| actionPlaybackComplete sound oldModel
 
     -- UI
     ChangeTab tab ->
       let
-        state = noTask { oldModel | tab = tab }
+        state = noCmd { oldModel | tab = tab }
       in case tab of
-        TaskMenu -> playBackground factories oldModel.script.backgroundLoops state
+        TaskMenu -> playBackground oldModel.script.backgroundLoops state
         _ -> stopAll state
 
     StartStopTestSound soundName ->
       startStopSound soundName oldModel
 
     StartStopScript script ->
-      playBackground factories script.backgroundLoops (noTask { oldModel | script = script }) |>
-      startStopScript factories script.soundName
+      playBackground script.backgroundLoops (noCmd { oldModel | script = script }) |>
+      startStopScript script.soundName
 
     StopAll ->
-      stopAll <| noTask oldModel
+      stopAll <| noCmd oldModel
 
     ScriptComplete script ->
-      noTask oldModel
+      noCmd oldModel
 
 
 --
 -- VIEW
 --
 
-view : Signal.Address Action -> Model -> Html
-view address model =
+view : Model -> Html Action
+view model =
   let
 
     scriptView script =
@@ -310,7 +316,7 @@ view address model =
       in
         li []
           [ span
-            [ onClick address <| StartStopScript script
+            [ onClick <| StartStopScript script
             , class (if isCurrent then "selected" else "idle")
             ]
             [ text label ]
@@ -325,7 +331,7 @@ view address model =
         li []
           [ button
               [ attr
-              , onClick address <| StartStopTestSound soundName
+              , onClick <| StartStopTestSound soundName
               ]
               [ text message ]
           ]
@@ -339,7 +345,7 @@ view address model =
       in
         button
           [ attr
-          , onClick address (ChangeTab TaskMenu)
+          , onClick (ChangeTab TaskMenu)
           ]
           [ text message ]
 
@@ -347,7 +353,7 @@ view address model =
       let
           message = if model.script == script0 then "Start" else "Next"
       in
-        button [ onClick address <| StartStopScript model.script] [ text message ]
+        button [ onClick <| StartStopScript model.script] [ text message ]
 
   in case model.tab of
     SoundCheck ->
@@ -370,6 +376,6 @@ view address model =
         [ h1 [] [ text "Wells" ]
         , ul [] <| List.map scriptView scripts
         , scriptNextButton
-        , button [ onClick address (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
-        , button [ onClick address StopAll ] [ text "Stop" ]
+        , button [ onClick (ChangeTab SoundCheck) ] [ text "back to Sound Check" ]
+        , button [ onClick StopAll ] [ text "Stop" ]
         ]

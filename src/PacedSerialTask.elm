@@ -5,8 +5,9 @@
 --
 
 
-module PacedSerialTask (..) where
+module PacedSerialTask exposing (..)
 
+import Process
 import Random
 import String
 import Task
@@ -27,7 +28,7 @@ randomChoice list seed =
       Random.int 0 (List.length list - 1)
 
     ( index, seed' ) =
-      Random.generate generator seed
+      Random.step generator seed
 
     choice =
       List.head <| List.drop index list
@@ -48,24 +49,22 @@ takeWhile predicate list =
       []
 
 
-runInParallel taskA taskB =
-  Task.spawn taskA `Task.andThen` (\_ -> taskB)
-
-
-
 --
 -- Model
 --
 
 
-type Action pq answer
-  = AnswerTimeout SessionId
+type Message answer
+  = InitRandomSeed Time.Time
+
+  | UpdateIsi String
+  | UpdateDuration String
+
+  | AnswerTimeout SessionId
   | UserAnswers answer
   | Start
   | ManualStop
   | AutomaticStop SessionId
-  | UpdateIsi String
-  | UpdateDuration String
 
 
 type Outcome
@@ -104,10 +103,12 @@ type alias Model pq answer =
   }
 
 
-model : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
-model key pqs isi duration =
+model0 : Key pq answer -> List pq -> Isi -> Duration -> Model pq answer
+model0 key pqs isi duration =
   Model key pqs True False [] isi 0 duration (Random.initialSeed 0) []
 
+cmd0 =
+  Task.perform (\_ -> ManualStop) InitRandomSeed Time.now
 
 
 --
@@ -177,7 +178,8 @@ addRandomPq model =
   in
     case pq of
       Nothing ->
-        Debug.crash "Zero partial qustions specified!"
+        -- TODO: fail at model0 rather than here
+        Debug.crash "Zero partial questions specified!"
 
       Just pq' ->
         { model
@@ -191,91 +193,67 @@ addRandomPq model =
 --
 -- Main update
 --
-
-
-type alias TaskFactories pq answer =
-  { emitPq : pq -> Task.Task String ()
-  , triggerAction : Action pq answer -> Task.Task String ()
-  }
-
-
-update : TaskFactories pq answer -> ( Time.Time, Action pq answer ) -> Model pq answer -> ( Model pq answer, Task.Task String () )
-update factories ( actionTimestamp, action ) oldModel =
+update : Message answer -> Model pq answer -> ( Model pq answer, Cmd (Message answer), Maybe pq )
+update message oldModel =
   let
-    noTask m =
-      ( m, Task.succeed () )
+    modelOnly m = ( m, Cmd.none, Nothing )
 
-    withinSession sessionId m =
-      if sessionId == oldModel.sessionId then
-        m
-      else
-        noTask oldModel
+    withinSession sessionId newState = if sessionId == oldModel.sessionId then newState else modelOnly oldModel
+    withinRunning newState = if oldModel.isRunning then newState else modelOnly oldModel
+    withinWaiting newState = if not oldModel.isRunning then newState else modelOnly oldModel
 
-    withinRunning m =
-      if oldModel.isRunning then
-        m
-      else
-        noTask oldModel
+    cmdDelayMessage delay message =
+      Task.perform (\_ -> ManualStop) (\_ -> message) (Process.sleep delay)
 
-    withinWaiting m =
-      if not oldModel.isRunning then
-        m
-      else
-        noTask oldModel
+    newPq m =
+      ( List.head m.sessionPqs, cmdDelayMessage (toFloat m.isi * Time.millisecond) (AnswerTimeout m.sessionId) )
 
-    taskDelayAction delay action =
-      Task.andThen (Task.sleep delay) (\_ -> factories.triggerAction action)
-
-    taskNewPq m =
-      runInParallel
-        (taskDelayAction (toFloat m.isi * Time.millisecond) (AnswerTimeout m.sessionId))
-        (case List.head m.sessionPqs of
-          Just pq ->
-            factories.emitPq pq
-
-          Nothing ->
-            Task.succeed ()
-        )
   in
-    case action of
+    case message of
+
+      InitRandomSeed time ->
+        -- `time` values within a minute to each other seem to produce the same initial random digit.
+        -- Times further away seem to be more genuinely random. Since the latter is the app use case,
+        -- no correction seems necessary.
+        modelOnly { oldModel | seed = Random.initialSeed <| floor time }
+
+
       --
       -- Session
       --
       Start ->
         withinWaiting
           <| let
-              updatedModel =
+              newModel =
                 { oldModel
                   | isRunning = True
                   , sessionId = oldModel.sessionId + 1
                   , sessionPqs = []
                   , sessionOutcomes = []
-                  , seed = Random.initialSeed <| floor actionTimestamp * 1000
                 }
                   |> addRandomPq
 
-              task =
-                runInParallel
-                  (taskDelayAction (toFloat updatedModel.duration * Time.minute) (AutomaticStop updatedModel.sessionId))
-                  (taskNewPq updatedModel)
+              ( maybePq, pqCmd ) = newPq newModel
+              stopCmd = cmdDelayMessage (toFloat newModel.duration * Time.minute) (AutomaticStop newModel.sessionId)
              in
-              ( updatedModel, task )
+              ( newModel, Cmd.batch [pqCmd, stopCmd], maybePq )
 
       ManualStop ->
         withinRunning
-          <| noTask { oldModel | isRunning = False }
+          <| modelOnly { oldModel | isRunning = False }
 
       AutomaticStop sessionId ->
         withinRunning
           <| withinSession sessionId
-          <| noTask { oldModel | isRunning = False }
+          <| modelOnly { oldModel | isRunning = False }
+
 
       --
       -- Answers
       --
       UserAnswers answerValue ->
         withinRunning
-          <| noTask
+          <| modelOnly
           <| setAnswer oldModel
           <| Just answerValue
 
@@ -283,13 +261,10 @@ update factories ( actionTimestamp, action ) oldModel =
         withinRunning
           <| withinSession sessionId
           <| let
-              updatedModel =
-                setAnswer oldModel Nothing |> addRandomPq
-
-              task =
-                taskNewPq updatedModel
+              newModel = setAnswer oldModel Nothing |> addRandomPq
+              ( maybePq, cmd ) = newPq newModel
              in
-              ( updatedModel, task )
+              ( newModel, cmd, maybePq )
 
       --
       -- Input fields updates
@@ -298,7 +273,7 @@ update factories ( actionTimestamp, action ) oldModel =
       --
       UpdateIsi isiString ->
         withinWaiting
-          <| noTask
+          <| modelOnly
           <| case String.toInt isiString of
               Ok isi ->
                 { oldModel | isi = isi }
@@ -308,10 +283,11 @@ update factories ( actionTimestamp, action ) oldModel =
 
       UpdateDuration durationString ->
         withinWaiting
-          <| noTask
+          <| modelOnly
           <| case String.toInt durationString of
               Ok duration ->
                 { oldModel | duration = duration }
 
               Err _ ->
                 oldModel
+
