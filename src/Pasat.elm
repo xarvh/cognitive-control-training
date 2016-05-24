@@ -1,4 +1,4 @@
-module Pasat exposing (..)
+module Pasat exposing (state0, Action, SelectVoice, Model, update)
 
 import Audio
 import Date
@@ -13,8 +13,6 @@ import PacedSerialTask
 
 --
 -- HELPERS
---
--- (I do long for Python's "batteries included")
 --
 
 

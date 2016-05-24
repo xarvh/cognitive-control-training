@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.html",
   "scripts": {
-    "build": "elm make src/Main.elm --output build/app.js"
+    "build": "elm make --yes src/Main.elm --output build/app.js"
   },
   "repository": {
     "type": "git",

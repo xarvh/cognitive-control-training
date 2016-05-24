@@ -34,7 +34,7 @@ type alias Model =
 type Action
   = Noop
   | TransitionTo Page
-  | WellsAction Wells.Action
+  | WellsAction Wells.Message
   | PasatAction Pasat.Action
 
 
