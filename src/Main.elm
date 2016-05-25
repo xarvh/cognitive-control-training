@@ -34,7 +34,7 @@ type alias Model =
 type Action
   = Noop
   | TransitionTo Page
-  | WellsAction Wells.Action
+  | WellsAction Wells.Message
   | PasatAction Pasat.Action
 
 
@@ -87,7 +87,7 @@ state0 =
       Pasat.state0
 
     ( wellsModel0, wellsCmd0 ) =
-      Wells.state0
+      Wells.init
 
     model =
       Model Wells pasatModel0 wellsModel0

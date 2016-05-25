@@ -14,8 +14,6 @@ import PacedSerialTask
 --
 -- HELPERS
 --
--- (I do long for Python's "batteries included")
---
 
 
 (&>) = Maybe.andThen
