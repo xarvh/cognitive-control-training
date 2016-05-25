@@ -152,18 +152,38 @@ soundsPlay scriptSound backgroundSounds oldModel =
 
 
 
+selectNextScript : Model -> Model
+selectNextScript model =
+    case model.currentScript of
+        Nothing -> { model | currentScript = List.head scripts }
+        Just currentScript ->
+            let
+                dropInit elem list = case list of
+                    x :: xs -> if x == elem then List.head xs else dropInit elem xs
+                    _ -> Nothing
+            in
+                { model | currentScript = dropInit currentScript scripts }
+
+
+
 update : Message -> Model -> ( Model, Cmd Message )
 update message oldModel =
   case message of
 
     NestedSoundControl soundName nestedMessage ->
-        -- TODO intercept PlaybackComplete
-        case Dict.get soundName oldModel.sounds of
+        let
+            -- Intercept PlaybackComplete
+            partialModel =
+                if nestedMessage == Sound.PlaybackComplete && Just soundName == (oldModel.currentScript &> (Just << .soundName))
+                then selectNextScript oldModel
+                else oldModel
+
+        in case Dict.get soundName partialModel.sounds of
             Nothing -> Debug.crash <| "invalid sound " ++ soundName
             Just oldSound ->
                 let
                     ( newSound, soundCmd ) = Sound.update nestedMessage oldSound
-                    newModel = { oldModel | sounds = Dict.insert soundName newSound oldModel.sounds }
+                    newModel = { partialModel | sounds = Dict.insert soundName newSound partialModel.sounds }
                 in
                     ( newModel, Cmd.map (NestedSoundControl soundName) soundCmd )
 
@@ -188,10 +208,11 @@ update message oldModel =
 
 
     UserSkipsCurrentScript ->
-        ( oldModel, Cmd.none )
-        -- pick next script
---         soundsPlay Nothing currentScript.backgroundLoops oldModel
-
+        let
+            newModel = selectNextScript oldModel
+            loops = Maybe.withDefault [] <| newModel.currentScript &> (Just << .backgroundLoops)
+        in
+            soundsPlay Nothing loops newModel
 
 
 
