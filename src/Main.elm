@@ -2,7 +2,7 @@ port module Main exposing (..)
 
 import Task
 import Time
-import Html exposing (div, text)
+import Html exposing (div, text, span, button)
 import Html.App
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (disabled)
@@ -99,6 +99,12 @@ state0 =
 --
 -- VIEW
 --
+viewWellsDone =
+    div
+        []
+        [ text "Task complete"
+        , button [ onClick (TransitionTo Pasat) ] [ text "Proceed to next task" ]
+        ]
 
 
 view : Model -> Html.Html Action
@@ -110,7 +116,11 @@ view model =
           AboutView.view
 
         Wells ->
-          Html.App.map WellsAction <| Wells.view model.wells
+            div
+                []
+                [ Html.App.map WellsAction <| Wells.view model.wells
+                , if model.wells.currentScript /= Nothing then span [] [] else viewWellsDone
+                ]
 
         Pasat ->
           Html.App.map PasatAction <| PasatView.view model.pasat

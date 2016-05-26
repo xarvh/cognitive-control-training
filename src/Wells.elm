@@ -225,7 +225,10 @@ viewTaskMenu model =
 
     in case model.currentScript of
         Nothing ->
-            text "All done, proceed to PASAT"
+            div []
+                [ text "All done"
+                , button [ onClick UserSkipsCurrentScript ] [ text "Start over" ]
+                ]
 
         Just script ->
             div
