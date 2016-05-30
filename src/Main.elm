@@ -1,15 +1,16 @@
 port module Main exposing (..)
 
-import Task
-import Time
+import AboutView
 import Html exposing (div, text, span, button)
 import Html.App
 import Html.Events exposing (onClick)
 import Html.Attributes exposing (disabled)
-import AboutView
-import Wells
+import Navigation
 import Pasat
 import PasatView
+import Task
+import Time
+import Wells
 
 
 
@@ -19,23 +20,27 @@ import PasatView
 
 
 type Page
-  = About
-  | Pasat
-  | Wells
+    = About
+    | Numbers
+    | Birds
+
+pages =
+    [ About, Numbers, Birds ]
 
 
 type alias Model =
-  { page : Page
-  , pasat : Pasat.Model
-  , wells : Wells.Model
-  }
+    { page : Page
+    , pasat : Pasat.Model
+    , wells : Wells.Model
+    }
 
 
 type Action
-  = Noop
-  | TransitionTo Page
-  | WellsAction Wells.Message
-  | PasatAction Pasat.Action
+    = Noop
+    | UrlChanges Navigation.Location
+    | UserClicksTo Page
+    | WellsAction Wells.Message
+    | PasatAction Pasat.Action
 
 
 
@@ -55,12 +60,29 @@ noCmd m =
   ( m, Cmd.none )
 
 
+urlToPage location =
+    case location.hash of
+        "#About" -> Just About
+        "#Birds" -> Just Birds
+        "#Numbers" -> Just Numbers
+        _ -> Nothing
+
+
+pageToUrl page =
+    "#" ++ toString page
+
+
 update : Action -> Model -> ( Model, Cmd Action )
 update action oldModel =
 
   case action of
-    TransitionTo page ->
-      noCmd { oldModel | page = page }
+    UrlChanges location ->
+        case urlToPage location of
+            Just page -> noCmd { oldModel | page = page }
+            Nothing -> (oldModel, Navigation.modifyUrl <| pageToUrl About)
+
+    UserClicksTo page ->
+        ({ oldModel | page = page }, Navigation.newUrl <| pageToUrl page)
 
     WellsAction wellsAction ->
       let
@@ -81,18 +103,18 @@ update action oldModel =
 
 
 
-state0 =
-  let
-    ( pasatModel0, pasatCmd0 ) =
-      Pasat.state0
+state0 location =
+    let
+        ( pasatModel0, pasatCmd0 ) =
+            Pasat.state0
 
-    ( wellsModel0, wellsCmd0 ) =
-      Wells.init
+        ( wellsModel0, wellsCmd0 ) =
+            Wells.init
 
-    model =
-      Model Wells pasatModel0 wellsModel0
-  in
-    ( model, Cmd.batch [Cmd.map WellsAction wellsCmd0, Cmd.map PasatAction pasatCmd0] )
+        ( model, urlCmd ) =
+            update (UrlChanges location) <| Model About pasatModel0 wellsModel0
+    in
+        ( model, Cmd.batch [urlCmd, Cmd.map WellsAction wellsCmd0, Cmd.map PasatAction pasatCmd0] )
 
 
 
@@ -103,7 +125,7 @@ viewWellsDone =
     div
         []
         [ text "Task complete"
-        , button [ onClick (TransitionTo Pasat) ] [ text "Proceed to next task" ]
+        , button [ onClick (UserClicksTo Numbers) ] [ text "Proceed to next task" ]
         ]
 
 
@@ -115,24 +137,24 @@ view model =
         About ->
           AboutView.view
 
-        Wells ->
+        Birds ->
             div
                 []
                 [ Html.App.map WellsAction <| Wells.view model.wells
                 , if model.wells.currentScript /= Nothing then span [] [] else viewWellsDone
                 ]
 
-        Pasat ->
+        Numbers ->
           Html.App.map PasatAction <| PasatView.view model.pasat
 
     pageSelector page =
-      div [ onClick <| TransitionTo page, disabled <| model.page == page ] [ text <| toString page ]
+      div [ onClick <| UserClicksTo page, disabled <| model.page == page ] [ text <| toString page ]
   in
     div
       []
       [ div
           []
-          <| List.map pageSelector [ About, Wells, Pasat ]
+          <| List.map pageSelector pages
       , page
       ]
 
@@ -144,9 +166,11 @@ view model =
 
 
 main =
-  Html.App.program
+  Navigation.program
+    (Navigation.makeParser identity)
     { init = state0
     , view = view
     , update = update
+    , urlUpdate = update << UrlChanges
     , subscriptions = \_ -> Sub.none
     }
