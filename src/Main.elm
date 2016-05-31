@@ -25,7 +25,7 @@ type Page
     | Birds
 
 pages =
-    [ About, Numbers, Birds ]
+    [ About, Birds, Numbers ]
 
 
 type alias Model =
