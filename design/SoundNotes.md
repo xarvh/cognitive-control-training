@@ -19,8 +19,10 @@ Original sound number / LR balance / Name
 
 
 ```
-R DB reduction
+R db reduction
 -3 LLR
 -6 LLLR
 -9 LLLLR
 ```
+
+Overall db reduction: 27 db
