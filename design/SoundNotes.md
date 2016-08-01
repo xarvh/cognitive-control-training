@@ -1,3 +1,6 @@
+Wells background sounds
+=======================
+
 ```
 Original sound number / LR balance / Name
 
@@ -16,8 +19,6 @@ Original sound number / LR balance / Name
 10 ?     ReedBunting
 ```
 
-
-
 ```
 R db reduction
 -3 LLR
@@ -25,4 +26,13 @@ R db reduction
 -9 LLLLR
 ```
 
-Overall db reduction: 27 db
+Volume reduction: `ecasound -i $i -o $OUT -ea:8`
+
+
+Wells script sounds processing from Cam's originals
+===================================================
+
+1. Pitch reduction by 6%
+1. Amplification: `ecasound -i $i -o $OUT -ea:140`
+1. `oggenc -q 1 --downmix $OUT`
+

@@ -64,17 +64,13 @@ scripts =
         base =
           [ "background/CarrionCrow"
           , "background/Chaffinch"
-          , "background/CommonPheasant"
           , "background/EuropeanGreenfinch"
-          , "background/EuropeanNightjarChurring"
           , "background/Fieldfare"
           , "background/GrasshopperWarbler"
-          , "background/GreatSpottedWoodpeckerDrumming"
+          , "background/GreatSpottedWoodpecker"
           , "background/GreatTit"
           , "background/HerringGull"
           , "background/HouseSparrow"
-          , "background/LittleGrebe"
-          , "background/ReedBunting"
           ]
 
         basePlusTapping =
@@ -256,7 +252,7 @@ viewSoundCheck model =
 
     , ul []
       [ soundTestButton "background/CarrionCrow" "Crow (centre)"
-      , soundTestButton "background/GreatSpottedWoodpeckerDrumming" "Woodpecker (right)"
+      , soundTestButton "background/GreatSpottedWoodpecker" "Woodpecker (right)"
       , soundTestButton "background/HerringGull" "Seagull (centre-left)"
       ]
 
