@@ -26,13 +26,14 @@ R db reduction
 -9 LLLLR
 ```
 
-Volume reduction: `ecasound -i $i -o $OUT -ea:8`
+Volume reduction: `ecasound -i $i -o $OUT -ea:20`
+Tapping only: `ecasound -i $i -o $OUT -ea:250`
 
 
 Wells script sounds processing from Cam's originals
 ===================================================
 
 1. Pitch reduction by 6%
-1. Amplification: `ecasound -i $i -o $OUT -ea:140`
+1. Amplification: `ecasound -i $i -o $OUT -ea:600`
 1. `oggenc -q 1 --downmix $OUT`
 
