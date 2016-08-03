@@ -4,6 +4,7 @@ import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, disabled)
 import Html.Events exposing (onClick)
+import List.Extra
 import Process
 import Platform.Cmd
 import Set
@@ -22,8 +23,14 @@ import Task
 --
 
 
-type alias SoundName = String
+type alias SoundName =
+    String
 
+
+type alias SoundRef =
+    { name : SoundName
+    , volume : Float
+    }
 
 type Tab
     = SoundCheck
@@ -32,8 +39,8 @@ type Tab
 
 type alias Script =
     { name : String
-    , soundName : SoundName
-    , backgroundLoops : List SoundName
+    , soundRef : SoundRef
+    , backgroundLoops : List SoundRef
     }
 
 
@@ -61,28 +68,37 @@ type alias Model =
 scripts : List Script
 scripts =
     let
+        birdVolume =
+            0.2
+
+        tappingVolume =
+            1.0
+
+        scriptVolume =
+            1.0
+
         base =
-          [ "background/CarrionCrow"
-          , "background/Chaffinch"
-          , "background/EuropeanGreenfinch"
-          , "background/Fieldfare"
-          , "background/GrasshopperWarbler"
-          , "background/GreatSpottedWoodpecker"
-          , "background/GreatTit"
-          , "background/HerringGull"
-          , "background/HouseSparrow"
+          [ SoundRef "background/CarrionCrow" birdVolume
+          , SoundRef "background/Chaffinch" birdVolume
+          , SoundRef "background/EuropeanGreenfinch" birdVolume
+          , SoundRef "background/Fieldfare" birdVolume
+          , SoundRef "background/GrasshopperWarbler" birdVolume
+          , SoundRef "background/GreatSpottedWoodpecker" birdVolume
+          , SoundRef "background/GreatTit" birdVolume
+          , SoundRef "background/HerringGull" birdVolume
+          , SoundRef "background/HouseSparrow" birdVolume
           ]
 
         basePlusTapping =
-          "background/Tapping" :: base
+          (SoundRef "background/Tapping" tappingVolume) :: base
 
     in
-        [ Script "Explanation" "scripts/Intro" base
-        , Script "Voice" "scripts/Voice" base
-        , Script "Tapping" "scripts/Tapping" basePlusTapping
-        , Script "Birds" "scripts/Birds" basePlusTapping
-        , Script "Shift" "scripts/Shift" basePlusTapping
-        , Script "Expand" "scripts/Expand" basePlusTapping
+        [ Script "Explanation" (SoundRef "scripts/Intro" scriptVolume) base
+        , Script "Voice" (SoundRef "scripts/Voice" scriptVolume) base
+        , Script "Tapping" (SoundRef "scripts/Tapping" scriptVolume) basePlusTapping
+        , Script "Birds" (SoundRef "scripts/Birds" scriptVolume) basePlusTapping
+        , Script "Shift" (SoundRef "scripts/Shift" scriptVolume) basePlusTapping
+        , Script "Expand" (SoundRef "scripts/Expand" scriptVolume) basePlusTapping
         ]
 
 
@@ -92,29 +108,36 @@ scripts =
 init : ( Model, Cmd Message )
 init =
     let
-        allBgSoundNames =
-            Set.toList <| Set.fromList <| List.concat <| List.map .backgroundLoops scripts
+        allBgSoundRefs =
+            List.map .backgroundLoops scripts
+                |> List.concat
+                |> List.Extra.uniqueBy .name
 
-        allScriptSoundNames =
-            List.map .soundName scripts
+        allScriptSoundRefs =
+            List.map .soundRef scripts
 
-        allSoundNames =
-            allScriptSoundNames ++ allBgSoundNames
+        allSoundRefs =
+            allScriptSoundRefs ++ allBgSoundRefs
 
         uri soundName =
             "assets/sounds/wells/" ++ soundName ++ ".ogg"
 
+        initModel soundRef =
+            Sound.init (uri soundRef.name) soundRef.volume
+
         ( sounds, cmds ) =
-            List.unzip <| List.map (Sound.init << uri) allSoundNames
+            List.unzip <| List.map initModel allSoundRefs
 
         soundsByName =
-            Dict.fromList <| List.map2 (,) allSoundNames sounds
+            Dict.fromList <| List.map2 (,) (List.map .name allSoundRefs) sounds
 
         model =
             Model soundsByName SoundCheck (List.head scripts)
 
         cmd =
-            Cmd.batch <| List.map (\( name, cmd ) -> Cmd.map (NestedSoundControl name) cmd) <| List.map2 (,) allSoundNames cmds
+            List.map2 (,) allSoundRefs cmds
+                |> List.map (\( ref, cmd ) -> Cmd.map (NestedSoundControl ref.name) cmd)
+                |> Cmd.batch
   in
         ( model, cmd )
 
@@ -123,13 +146,13 @@ init =
 --
 -- Update Helpers
 --
-soundsPlay : Maybe SoundName -> List SoundName -> Model -> ( Model, Cmd Message )
+soundsPlay : Maybe SoundName -> List SoundRef -> Model -> ( Model, Cmd Message )
 soundsPlay scriptSound backgroundSounds oldModel =
     let
         switchSound (soundName, oldSound) =
             let
                 mode =
-                    if List.member soundName backgroundSounds then Sound.Loop
+                    if List.any (\r -> r.name == soundName) backgroundSounds then Sound.Loop
                     else if scriptSound == Just soundName then Sound.Play
                     else Sound.Idle
 
@@ -154,9 +177,10 @@ selectNextScript model =
         Nothing -> { model | currentScript = List.head scripts }
         Just currentScript ->
             let
-                dropInit elem list = case list of
-                    x :: xs -> if x == elem then List.head xs else dropInit elem xs
-                    _ -> Nothing
+                dropInit elem list =
+                    case list of
+                        x :: xs -> if x == elem then List.head xs else dropInit elem xs
+                        _ -> Nothing
             in
                 { model | currentScript = dropInit currentScript scripts }
 
@@ -169,8 +193,13 @@ update message oldModel =
     NestedSoundControl soundName nestedMessage ->
         let
             -- Intercept PlaybackComplete
+            currentScriptHasCompleted =
+                case oldModel.currentScript of
+                    Nothing -> False
+                    Just script -> nestedMessage == Sound.PlaybackComplete && soundName == script.soundRef.name
+
             partialModel =
-                if nestedMessage == Sound.PlaybackComplete && Just soundName == (oldModel.currentScript &> (Just << .soundName))
+                if currentScriptHasCompleted
                 then selectNextScript oldModel
                 else oldModel
 
@@ -200,7 +229,7 @@ update message oldModel =
     UserPlaysCurrentScript ->
         Maybe.withDefault (oldModel, Cmd.none) <|
         oldModel.currentScript &> \currentScript ->
-        Just <| soundsPlay (Just currentScript.soundName) currentScript.backgroundLoops oldModel
+        Just <| soundsPlay (Just currentScript.soundRef.name) currentScript.backgroundLoops oldModel
 
 
     UserSkipsCurrentScript ->
