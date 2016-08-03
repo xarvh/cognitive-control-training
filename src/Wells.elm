@@ -69,7 +69,7 @@ scripts : List Script
 scripts =
     let
         birdVolume =
-            0.2
+            0.16
 
         tappingVolume =
             1.0
