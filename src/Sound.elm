@@ -13,6 +13,7 @@ type Status
 
 type alias Model =
   { sound : Maybe Audio.Sound
+  , volume : Float
   , status : Status
   }
 
@@ -25,10 +26,10 @@ type Message
   | PlaybackComplete
 
 
-init : String -> ( Model, Cmd Message )
-init uri =
+init : String -> Float -> ( Model, Cmd Message )
+init uri volume =
     let
-        model = Model Nothing Idle
+        model = Model Nothing volume Idle
         cmd = Task.perform Error LoadComplete <| Audio.loadSound uri
     in
        ( model, cmd )
@@ -40,7 +41,7 @@ stopSound sound model =
 
 
 playbackOptions model =
-  { defaultPlaybackOptions | loop = model.status == Loop}
+  { defaultPlaybackOptions | loop = model.status == Loop, volume = model.volume}
 
 
 playSound : Audio.Sound -> Model -> Cmd Message
