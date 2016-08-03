@@ -7,15 +7,9 @@ import Html.Events exposing (onClick)
 import List.Extra
 import Process
 import Platform.Cmd
-import Set
 import Sound
 import String
 import Task
-
-
-(&>) = Maybe.andThen
--- https://github.com/elm-lang/elm-compiler/issues/1394
--- infixl 9 &>
 
 
 --
@@ -221,21 +215,24 @@ update message oldModel =
         let
             background = case tab of
                 SoundCheck -> []
-                TaskMenu -> Maybe.withDefault [] (oldModel.currentScript &> (Just << .backgroundLoops))
+                TaskMenu -> Maybe.withDefault [] (Maybe.map .backgroundLoops oldModel.currentScript)
         in
             soundsPlay Nothing background { oldModel | tab = tab }
 
 
     UserPlaysCurrentScript ->
-        Maybe.withDefault (oldModel, Cmd.none) <|
-        oldModel.currentScript &> \currentScript ->
-        Just <| soundsPlay (Just currentScript.soundRef.name) currentScript.backgroundLoops oldModel
-
+        case oldModel.currentScript of
+            Nothing -> (oldModel, Cmd.none)
+            Just script -> soundsPlay (Just script.soundRef.name) script.backgroundLoops oldModel
 
     UserSkipsCurrentScript ->
         let
-            newModel = selectNextScript oldModel
-            loops = Maybe.withDefault [] <| newModel.currentScript &> (Just << .backgroundLoops)
+            newModel =
+                selectNextScript oldModel
+
+            loops =
+                Maybe.map .backgroundLoops newModel.currentScript
+                    |> Maybe.withDefault []
         in
             soundsPlay Nothing loops newModel
 
