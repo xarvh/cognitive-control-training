@@ -46,6 +46,7 @@ type Message
     | UserChangesTab Tab -- Also used to stop all playback
     | UserPlaysCurrentScript
     | UserSkipsCurrentScript
+    | UserStopsAllSounds
 
 
 type alias Model =
@@ -236,6 +237,8 @@ update message oldModel =
         in
             soundsPlay Nothing loops newModel
 
+    UserStopsAllSounds ->
+        soundsPlay Nothing [] oldModel
 
 
 --
@@ -243,7 +246,9 @@ update message oldModel =
 --
 viewTaskMenu model =
     let
-        isPlaying = List.any (\s -> s.status == Sound.Play) <| Dict.values model.sounds
+        allSounds = Dict.values model.sounds
+        isPlayingScript = List.any (\s -> s.status == Sound.Play) allSounds
+        isMute = List.all (\s -> s.status == Sound.Idle) allSounds
 
     in case model.currentScript of
         Nothing ->
@@ -255,12 +260,33 @@ viewTaskMenu model =
         Just script ->
             div
                 []
-                -- TODO is playing or not?
-                [ text <| (if isPlaying then "Playing: " else "Up Next: ") ++ script.name
-                , if isPlaying
-                  then button [ onClick (UserChangesTab SoundCheck) ] [ text "Stop" ]
-                  else button [ onClick UserPlaysCurrentScript ] [ text "Play" ]
-                , button [ onClick <| UserSkipsCurrentScript ] [ text "Skip" ]
+                [ text <| (if isPlayingScript then "Playing: " else "Up Next: ") ++ script.name
+
+                , button
+                    [ onClick UserPlaysCurrentScript
+                    , disabled isPlayingScript
+                    ]
+                    [ text "Play"
+                    ]
+
+                , button
+                    [ onClick UserStopsAllSounds
+                    , disabled isMute
+                    ]
+                    [ text "Stop"
+                    ]
+
+                , button
+                    [ onClick UserSkipsCurrentScript
+                    ]
+                    [ text "Skip"
+                    ]
+
+                , button
+                    [ onClick <| UserChangesTab SoundCheck
+                    ]
+                    [ text "Sound check"
+                    ]
                 ]
 
 
