@@ -31,17 +31,6 @@ section {
   margin: 3rem 0;
 }
 
-
-ul.nav {
-  padding: 0;
-}
-.nav li {
-  display: inline-block;
-}
-.nav li + li {
-  margin-left: 5rem;
-}
-
 button {
   background-color: transparent;
   border: 1px solid #3498db;
@@ -102,6 +91,33 @@ a {
 
 .col-value {
 }
+
+
+/* nav menu */
+ul.nav {
+  padding: 0;
+}
+.nav li {
+  display: inline-block;
+}
+.nav .nav-selected {
+  color: #909090;
+  border-color: #909090;
+}
+.nav .nav-available {
+}
+
+
+/* Birds Task */
+.script-name {
+  font-size: 1.6rem;
+  font-style: italic;
+}
+
+.script-status {
+    margin-bottom: 1rem;
+}
+
 
 /* Number Task*/
 .pasat-download button {

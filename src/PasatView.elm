@@ -3,6 +3,7 @@ module PasatView exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (style, class, value, disabled, selected)
 import Html.Events exposing (onClick, on, targetValue)
+import Markdown
 import Json.Decode
 import Pasat
 import PacedSerialTask
@@ -93,7 +94,15 @@ view model =
     instructions =
       section
         [ class "pasat-instruction" ]
-        [ text "\n                When you press Start, you will hear a voice calling out numbers:\n                press the button corresponding to the SUM of the LAST TWO numbers you HEARD.\n                For example, if you hear \"two, four, seven\", you will press button 6 (because 2 + 4 = 6)\n                and then 11 (because 4 + 7 = 11)"
+        [ Markdown.toHtml [] """
+When you press Start, you will hear a voice calling out numbers:
+press the button corresponding to the SUM of the **last two** numbers you **heard**.
+
+For example, if you hear "two, four, seven", you will press button 6 (because 2 + 4 = 6)
+and then 11 (because 4 + 7 = 11).
+
+The exercise is slightly frustrating by design.
+"""
         ]
 
     language =

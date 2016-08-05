@@ -147,11 +147,15 @@ view model =
         Numbers ->
           Html.App.map PasatAction <| PasatView.view model.pasat
 
-    pageSelector page = li
-        [ onClick <| UserClicksTo page
-        , disabled <| model.page == page
-        ]
-        [ text <| toString page ]
+    pageSelector page =
+        li
+            []
+            [ button
+                [ onClick <| UserClicksTo page
+                , class <| if model.page == page then "nav-selected" else "nav-avaialble"
+                ]
+                [ text <| toString page ]
+            ]
   in
     div
       []

@@ -260,32 +260,37 @@ viewTaskMenu model =
         Just script ->
             div
                 []
-                [ text <| (if isPlayingScript then "Playing: " else "Up Next: ") ++ script.name
-
-                , button
-                    [ onClick UserPlaysCurrentScript
-                    , disabled isPlayingScript
-                    ]
-                    [ text "Play"
+                [ div [ class "script-status" ]
+                    [ span [] [ text <|  if isPlayingScript then "Playing: " else "Up Next: " ]
+                    , span [ class "script-name" ] [ text script.name ]
                     ]
 
-                , button
-                    [ onClick UserStopsAllSounds
-                    , disabled isMute
-                    ]
-                    [ text "Stop"
-                    ]
+                , div []
+                    [ button
+                        [ onClick UserPlaysCurrentScript
+                        , disabled isPlayingScript
+                        ]
+                        [ text "Play"
+                        ]
 
-                , button
-                    [ onClick UserSkipsCurrentScript
-                    ]
-                    [ text "Skip"
-                    ]
+                    , button
+                        [ onClick UserStopsAllSounds
+                        , disabled isMute
+                        ]
+                        [ text "Stop"
+                        ]
 
-                , button
-                    [ onClick <| UserChangesTab SoundCheck
-                    ]
-                    [ text "Sound check"
+                    , button
+                        [ onClick UserSkipsCurrentScript
+                        ]
+                        [ text "Skip"
+                        ]
+
+                    , button
+                        [ onClick <| UserChangesTab SoundCheck
+                        ]
+                        [ text "Sound check"
+                        ]
                     ]
                 ]
 
@@ -298,7 +303,7 @@ soundTestButton soundName description =
 viewSoundCheck model =
   div
     []
-    [ h1 [] [ text "Sound Check" ]
+    [ h2 [] [ text "Sound Check" ]
 
     , text "Play the sounds and ensure they come from the direction indicated"
 

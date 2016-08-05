@@ -56,12 +56,13 @@ If you can, take part in clinical trials and help to push the science forward.
 The App
 -------
 
+Do both tasks (first Birds then Numbers) once per day, five days a week, for at least four weeks.
+
+While the two tasks are completely functional and can be used already, I will keep improving the page.
+
 This app does not "send home" any information whatsoever, and in fact you can
 [download it](https://github.com/xarvh/cortex/archive/gh-pages.zip) (open `index.html`) and use it
 without an internet connection.
-
-
-While the two tasks are completely functional and can be used already, I will keep improving the page.
 
 For any technical issues or if you want to contribute, visit the [GitHub page](https://github.com/xarvh/cortex).
 """
