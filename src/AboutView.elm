@@ -39,7 +39,7 @@ At least in my experience, curing depression required a combination of several d
 cognitive control training was only one of them.
 Among those I personally found significantly effective:
 
-- Cognitive behavioural therapy
+- Cognitive behavioural therapy (I used [this](http://katz.oldfield.org.pl/Ola/David%20Burns%20-%20Feeling%20Good.pdf))
 - Medication (mirtazapine, sertraline)
 - Mindfulness training
 - Intense physical exercise
