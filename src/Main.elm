@@ -38,7 +38,7 @@ type alias Model =
 type Action
     = Noop
     | UrlChanges Navigation.Location
-    | UserClicksTo Page
+    | UserSelectsPage Page
     | WellsAction Wells.Message
     | PasatAction Pasat.Action
 
@@ -72,17 +72,43 @@ pageToUrl page =
     "#" ++ toString page
 
 
+changePage page oldModel =
+    if page == oldModel.page
+    then noCmd oldModel
+    else
+        let
+            newModel =
+                {oldModel | page = page}
+        in
+            case oldModel.page of
+                Birds -> update (WellsAction Wells.UserStopsAllSounds) newModel
+                _ -> noCmd newModel
+
+
 update : Action -> Model -> ( Model, Cmd Action )
 update action oldModel =
 
   case action of
+
     UrlChanges location ->
         case urlToPage location of
-            Just page -> noCmd { oldModel | page = page }
-            Nothing -> (oldModel, Navigation.modifyUrl <| pageToUrl About)
+            Nothing ->
+                    (oldModel, Navigation.modifyUrl <| pageToUrl About)
 
-    UserClicksTo page ->
-        ({ oldModel | page = page }, Navigation.newUrl <| pageToUrl page)
+            Just page ->
+                changePage page oldModel
+
+
+    UserSelectsPage page ->
+        let
+            (newModel, pageCmd) =
+                changePage page oldModel
+
+            urlCmd =
+                Navigation.newUrl <| pageToUrl page
+        in
+            ({ newModel | page = page }, Cmd.batch [pageCmd, urlCmd])
+
 
     WellsAction wellsAction ->
       let
@@ -91,12 +117,14 @@ update action oldModel =
       in
         ( { oldModel | wells = wellsModel }, Cmd.map WellsAction wellsCmd )
 
+
     PasatAction pasatAction ->
       let
         ( pasatModel, pasatCmd ) =
           Pasat.update downloadPort pasatAction oldModel.pasat
       in
         ( { oldModel | pasat = pasatModel }, Cmd.map PasatAction pasatCmd )
+
 
     Noop ->
       noCmd oldModel
@@ -125,7 +153,7 @@ viewWellsDone =
     div
         []
         [ text "Task complete"
-        , button [ onClick (UserClicksTo Numbers) ] [ text "Proceed to next task" ]
+        , button [ onClick (UserSelectsPage Numbers) ] [ text "Proceed to next task" ]
         ]
 
 
@@ -151,7 +179,7 @@ view model =
         li
             []
             [ button
-                [ onClick <| UserClicksTo page
+                [ onClick <| UserSelectsPage page
                 , class <| if model.page == page then "nav-selected" else "nav-avaialble"
                 ]
                 [ text <| toString page ]
