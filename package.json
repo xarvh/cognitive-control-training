@@ -1,5 +1,5 @@
 {
-  "name": "cortex",
+  "name": "cognitive-control-training",
   "version": "1.0.0",
   "description": "",
   "main": "index.html",
@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xarvh/cortex.git"
+    "url": "git+https://github.com/xarvh/cognitive-control-training.git"
   },
   "author": "Francesco Orsenigo",
   "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/xarvh/cortex/issues"
+    "url": "https://github.com/xarvh/cognitive-control-training/issues"
   },
-  "homepage": "http://xarvh.github.io/cortex/",
+  "homepage": "http://xarvh.github.io/cognitive-control-training/",
   "devDependencies": {
     "elm": "^8.2.0"
   }
