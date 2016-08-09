@@ -307,7 +307,8 @@ viewSoundCheck model =
 
     , text "Play the sounds and ensure they come from the direction indicated"
 
-    , ul []
+    , ul
+      [ class "sound-checks" ]
       [ soundTestButton "background/CarrionCrow" "Crow (centre)"
       , soundTestButton "background/GreatSpottedWoodpecker" "Woodpecker (right)"
       , soundTestButton "background/HerringGull" "Seagull (centre-left)"

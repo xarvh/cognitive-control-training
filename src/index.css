@@ -109,6 +109,10 @@ ul.nav {
 
 
 /* Birds Task */
+.sound-checks {
+    list-style: none;
+}
+
 .script-name {
   font-size: 1.6rem;
   font-style: italic;

@@ -163,7 +163,10 @@ view model =
     page =
       case model.page of
         About ->
-          AboutView.view
+            div []
+                [ AboutView.view
+                , button [ onClick (UserSelectsPage Birds) ] [ text "Begin with the first task" ]
+                ]
 
         Birds ->
             div

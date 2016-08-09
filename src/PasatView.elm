@@ -102,6 +102,8 @@ For example, if you hear "two, four, seven", you will press button 6 (because 2 
 and then 11 (because 4 + 7 = 11).
 
 The exercise is slightly frustrating by design.
+
+Do at least two five-minutes sessions each time.
 """
         ]
 
