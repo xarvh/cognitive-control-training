@@ -296,8 +296,7 @@ viewTaskMenu model =
 
 
 soundTestButton soundName description =
-  li []
-    [ button [ onClick <| UserPlaysTestSound soundName ] [ text description ] ]
+    button [ onClick <| UserPlaysTestSound soundName ] [ text description ]
 
 
 viewSoundCheck model =
@@ -305,9 +304,9 @@ viewSoundCheck model =
     []
     [ h2 [] [ text "Sound Check" ]
 
-    , text "Play the sounds and ensure they come from the direction indicated"
+    , text "Play the sounds and ensure they come from the direction indicated:"
 
-    , ul
+    , div
       [ class "sound-checks" ]
       [ soundTestButton "background/CarrionCrow" "Crow (centre)"
       , soundTestButton "background/GreatSpottedWoodpecker" "Woodpecker (right)"

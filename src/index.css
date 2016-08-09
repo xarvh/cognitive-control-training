@@ -100,6 +100,9 @@ ul.nav {
 .nav li {
   display: inline-block;
 }
+.nav button + button {
+  border-left: 0;
+}
 .nav .nav-selected {
   color: #909090;
   border-color: #909090;
@@ -110,7 +113,11 @@ ul.nav {
 
 /* Birds Task */
 .sound-checks {
-    list-style: none;
+    margin-bottom: 1.2rem;
+}
+.sound-checks button {
+    display: block;
+    margin-bottom: 0.2rem;
 }
 
 .script-name {
