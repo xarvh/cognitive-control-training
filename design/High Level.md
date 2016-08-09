@@ -1,4 +1,4 @@
-# Cortex UX Research
+# Cognitive Control Training UX Research
 ## User Story
 When I have depression I want to not have depression so I can live a normal life.
 

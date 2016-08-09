@@ -59,13 +59,13 @@ The App
 Do both tasks (first Birds then Numbers) once per day, five days a week, for at least four weeks.
 
 The app does not "send home" any information whatsoever, and in fact you can
-[download it](https://github.com/xarvh/cortex/archive/gh-pages.zip) (open `index.html`) and use it
+[download it](https://github.com/xarvh/cognitive-control-training/archive/gh-pages.zip) (open `index.html`) and use it
 without an internet connection.
 
 **The app requires a modern browser** (I test it on Chrome and Firefox), it will not work on older
 browsers and in general is far from perfect, but it can be used already and I am committed to keep
 improving it.
 
-For any technical issues or if you want to contribute, visit the [GitHub page](https://github.com/xarvh/cortex).
+For any technical issues or if you want to contribute, visit the [GitHub page](https://github.com/xarvh/cognitive-control-training).
 """
 
