@@ -169,9 +169,10 @@ ul.nav {
 }
 .number-button:hover {
   background-color: #44a3e3;
-  # Lighter
 }
-.number-button:active {
-  background-color: #2378b1;
-  # Darker
+.number-button-right:active {
+  background-color: #00db66;
+}
+.number-button-wrong:active {
+  background-color: #db6600;
 }

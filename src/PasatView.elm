@@ -19,8 +19,6 @@ buttonRadius =
 
 
 -- TODO move this out of here
-
-
 voices =
   [ "english/ossi"
   , "italiano/fra"
@@ -39,11 +37,11 @@ languageOptions currentVoice =
     List.map voiceToOption voices
 
 
-makeButton : Int -> Float -> Float -> Html Pasat.Action
-makeButton answer radius angle =
+makeButton : Int -> Bool -> Float -> Float -> Html Pasat.Action
+makeButton answer isCorrect radius angle =
   div
     [ onClick <| Pasat.NestedPstAction <| PacedSerialTask.UserAnswers answer
-    , class "number-button"
+    , class <| "number-button number-button-" ++ if isCorrect then "right" else "wrong"
     , style
         [ ( "top", toString (buttonContainerHeight / 2 - buttonRadius / 2 - 1.1 * radius * buttonRadius * cos (turns angle)) ++ "px" )
         , ( "left", toString (buttonContainerHeight / 2 - buttonRadius / 2 + 1.1 * radius * buttonRadius * sin (turns angle)) ++ "px" )
@@ -56,10 +54,10 @@ makeButton answer radius angle =
 -- Lay out the more frequent answers closer to the centre
 
 
-makeButtons : List (Html Pasat.Action)
-makeButtons =
+makeButtons : Maybe Pasat.Answer -> List (Html Pasat.Action)
+makeButtons correctAnswer =
   let
-    bt = makeButton
+    bt n = makeButton n (Just n == correctAnswer)
   in
     -- centre
     [ bt 10 0 0
@@ -157,7 +155,7 @@ Do at least two five-minutes sessions each time.
             [ style [ ( "display", "inline-block" ) ] ]
             [ div
                 [ class "number-buttons-container" ]
-                (makeButtons)
+                (makeButtons <| model.pst.key model.pst.sessionPqs)
             , let
                 ( action, label ) =
                   if model.pst.isRunning then
